@@ -1,9 +1,11 @@
 package com.nonkungch.dynamicsurvival;
 
+import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
 
 public class CommandManager implements CommandExecutor {
 
@@ -14,28 +16,79 @@ public class CommandManager implements CommandExecutor {
     }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
 
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage("§cคำสั่งนี้ใช้ได้เฉพาะผู้เล่นเท่านั้น!");
+        // 1. ตรวจสอบ Permission ก่อน
+        if (!sender.hasPermission("dynamicsurvival.admin")) {
+            sender.sendMessage("§cYou don't have permission to use this command.");
             return true;
         }
 
         if (args.length == 0) {
-            player.sendMessage("§eใช้คำสั่ง: /dsurvival temp §fดูอุณหภูมิ, /dsurvival thirst §fดูความกระหาย");
+            sender.sendMessage("§eUsage: /ds <setseason|setthirst|settemp|info|reload>");
             return true;
         }
 
         switch (args[0].toLowerCase()) {
-            case "temp" -> {
-                double temp = plugin.getTempManager().getTemperature(player);
-                player.sendMessage("§bอุณหภูมิของคุณ: §f" + String.format("%.1f", temp) + "°C");
+            case "info" -> {
+                sender.sendMessage("§aDynamicSurvival Plugin v" + plugin.getDescription().getVersion());
+                sender.sendMessage("§7Author: NonKungCh");
             }
-            case "thirst" -> {
-                double thirst = plugin.getThirstManager().getThirst(player);
-                player.sendMessage("§bความกระหายของคุณ: §f" + String.format("%.0f", thirst) + "%");
+
+            case "reload" -> {
+                // ส่วนนี้ปกติจะใช้โหลด config ใหม่ (ถ้ามี)
+                // plugin.reloadConfig();
+                sender.sendMessage("§aDynamicSurvival reloaded!");
             }
-            default -> player.sendMessage("§cไม่พบคำสั่งย่อยนี้!");
+
+            case "setthirst" -> {
+                // /ds setthirst <player> <value>
+                if (args.length != 3) {
+                    sender.sendMessage("§cUsage: /ds setthirst <player> <value>");
+                    return true;
+                }
+                Player target = Bukkit.getPlayer(args[1]);
+                if (target == null) {
+                    sender.sendMessage("§cPlayer not found: " + args[1]);
+                    return true;
+                }
+                try {
+                    double value = Double.parseDouble(args[2]);
+                    plugin.getThirstManager().setThirst(target, value);
+                    sender.sendMessage("§aSet " + target.getName() + "'s thirst to " + value + "%.");
+                    target.sendMessage("§aYour thirst has been set to " + value + "%.");
+                } catch (NumberFormatException e) {
+                    sender.sendMessage("§cInvalid number: " + args[2]);
+                }
+            }
+
+            case "settemp" -> {
+                // /ds settemp <player> <value>
+                if (args.length != 3) {
+                    sender.sendMessage("§cUsage: /ds settemp <player> <value>");
+                    return true;
+                }
+                Player target = Bukkit.getPlayer(args[1]);
+                if (target == null) {
+                    sender.sendMessage("§cPlayer not found: " + args[1]);
+                    return true;
+                }
+                try {
+                    double value = Double.parseDouble(args[2]);
+                    plugin.getTempManager().setTemperature(target, value);
+                    sender.sendMessage("§aSet " + target.getName() + "'s temperature to " + value + "°C.");
+                    target.sendMessage("§aYour temperature has been set to " + value + "°C.");
+                } catch (NumberFormatException e) {
+                    sender.sendMessage("§cInvalid number: " + args[2]);
+                }
+            }
+
+            case "setseason" -> {
+                // ในอนาคตคุณอาจจะเพิ่มระบบฤดูกาล
+                sender.sendMessage("§eSeason system is not implemented yet.");
+            }
+
+            default -> sender.sendMessage("§cUnknown subcommand. Usage: /ds <setseason|setthirst|settemp|info|reload>");
         }
 
         return true;

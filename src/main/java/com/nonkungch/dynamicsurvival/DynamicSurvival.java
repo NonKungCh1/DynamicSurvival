@@ -33,7 +33,7 @@ public class DynamicSurvival extends JavaPlugin {
         this.timeManager = new TimeManager(this);
 
         // Register command & listener
-        getCommand("dsurvival").setExecutor(new CommandManager(this));
+        getCommand("ds").setExecutor(new CommandManager(this));
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
 
         // เริ่มระบบอัปเดตทุกวินาที
