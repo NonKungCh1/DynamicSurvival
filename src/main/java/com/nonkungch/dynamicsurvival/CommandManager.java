@@ -1,54 +1,43 @@
 package com.nonkungch.dynamicsurvival;
 
-import org.bukkit.Bukkit;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.java.JavaPlugin;
 
-import net.kyori.adventure.text.Component;
+public class CommandManager implements CommandExecutor {
 
-import com.nonkungch.dynamicsurvival.managers.TemperatureManager;
-import com.nonkungch.dynamicsurvival.managers.TimeManager;
-import com.nonkungch.dynamicsurvival.CommandManager;
+    private final DynamicSurvival plugin;
 
-public class DynamicSurvival extends JavaPlugin {
-
-    private static DynamicSurvival instance;
-    private TemperatureManager temperatureManager;
-    private TimeManager timeManager;
-
-    @Override
-    public void onEnable() {
-        instance = this;
-
-        // สร้าง Manager
-        this.temperatureManager = new TemperatureManager(this);
-        this.timeManager = new TimeManager(this);
-
-        // ลงทะเบียนคำสั่ง
-        getCommand("dsurvival").setExecutor(new CommandManager(this));
-
-        getLogger().info("DynamicSurvival has been enabled!");
+    public CommandManager(DynamicSurvival plugin) {
+        this.plugin = plugin;
     }
 
     @Override
-    public void onDisable() {
-        getLogger().info("DynamicSurvival has been disabled!");
-    }
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
 
-    public static DynamicSurvival getInstance() {
-        return instance;
-    }
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cคำสั่งนี้ใช้ได้เฉพาะผู้เล่นเท่านั้น!");
+            return true;
+        }
 
-    public TemperatureManager getTempManager() {
-        return temperatureManager;
-    }
+        if (args.length == 0) {
+            player.sendMessage("§eใช้คำสั่ง: /dsurvival temp §fดูอุณหภูมิ, /dsurvival thirst §fดูความกระหาย");
+            return true;
+        }
 
-    public TimeManager getTimeManager() {
-        return timeManager;
-    }
+        switch (args[0].toLowerCase()) {
+            case "temp" -> {
+                double temp = plugin.getTempManager().getTemperature(player);
+                player.sendMessage("§bอุณหภูมิของคุณ: §f" + String.format("%.1f", temp) + "°C");
+            }
+            case "thirst" -> {
+                double thirst = plugin.getThirstManager().getThirst(player);
+                player.sendMessage("§bความกระหายของคุณ: §f" + String.format("%.0f", thirst) + "%");
+            }
+            default -> player.sendMessage("§cไม่พบคำสั่งย่อยนี้!");
+        }
 
-    public void sendActionBar(Player player, String message) {
-        // ใช้ Adventure API ส่งข้อความ ActionBar แบบใหม่
-        player.sendActionBar(Component.text(message));
+        return true;
     }
 }
