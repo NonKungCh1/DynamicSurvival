@@ -8,13 +8,13 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
 
-public class TemperatureManager {
+public class TimeManager {
 
     private final DynamicSurvival plugin;
     private final int MAX_TEMP = 100;
     private final int MIN_TEMP = 0;
 
-    public TemperatureManager(DynamicSurvival plugin) {
+    public TimeManager(DynamicSurvival plugin) {
         this.plugin = plugin;
     }
 
