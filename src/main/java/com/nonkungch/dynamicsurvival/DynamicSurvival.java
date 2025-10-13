@@ -4,8 +4,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.World;
-import org.bukkit.block.Biome;
-import org.bukkit.block.Block;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -13,7 +11,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.util.BoundingBox;
 
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.platform.bukkit.BukkitAudiences;
@@ -66,7 +63,10 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     private int currentDay = 1;
     private long lastDayTime = 0;
     private final Map<Player, PlayerStats> playerStats = new HashMap<>();
-    private final Random random = new Random();
+    
+    // **แก้ไขแล้ว: เปลี่ยน private เป็น public เพื่อให้ SeasonProcessor เข้าถึงได้**
+    public final Random random = new Random(); 
+    
     private World trackedWorld; 
     private BukkitAudiences audiences;
     private ConfigManager configManager; 
@@ -139,7 +139,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
                 }
                 lastDayTime = currentTime;
 
-                if (currentTime % 12000 == 0 && random.nextDouble() < configManager.getWeatherChance()) { 
+                if (random.nextDouble() < configManager.getWeatherChance()) { 
                     applyRandomWeather();
                 }
             }
