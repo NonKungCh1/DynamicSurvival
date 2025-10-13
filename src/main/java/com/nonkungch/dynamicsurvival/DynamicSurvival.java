@@ -11,9 +11,11 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 
-// ************************ การนำเข้าใหม่สำหรับ Action Bar ************************
+// ************************ การนำเข้าใหม่สำหรับ Adventure API ************************
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.platform.bukkit.BukkitAudiences; // NEW: สำหรับจัดการ Action Bar
+import net.kyori.adventure.audience.Audience;             // NEW: สำหรับดึงผู้เล่น
 // ********************************************************************************
 
 import java.util.EnumMap;
@@ -26,13 +28,13 @@ import java.util.Random;
 // ====================================================================================
 
 enum Season {
-    SPRING("ฤดูใบไม้ผลิ", 20, "§a§l"), // สีเขียวสด
-    SUMMER("ฤดูร้อน", 25, "§6§l"),  // สีทอง/เหลือง
-    AUTUMN("ฤดูใบไม้ร่วง", 15, "§c§l"), // สีแดง
-    WINTER("ฤดูหนาว", 30, "§b§l");  // สีฟ้าอ่อน
+    SPRING("ฤดูใบไม้ผลิ", 20, "§a§l"), 
+    SUMMER("ฤดูร้อน", 25, "§6§l"),  
+    AUTUMN("ฤดูใบไม้ร่วง", 15, "§c§l"), 
+    WINTER("ฤดูหนาว", 30, "§b§l");  
 
     private final String thaiName;
-    private final int durationDays; // จำนวนวันในเกมที่ฤดูกาลนี้คงอยู่
+    private final int durationDays; 
     private final String chatColor;
 
     Season(String thaiName, int durationDays, String chatColor) {
@@ -45,35 +47,32 @@ enum Season {
         return values()[(ordinal() + 1) % values().length];
     }
     
-    public String getThaiName() {
-        return thaiName;
-    }
-
-    public int getDurationDays() {
-        return durationDays;
-    }
-    
-    public String getChatColor() {
-        return chatColor;
-    }
+    public String getThaiName() { return thaiName; }
+    public int getDurationDays() { return durationDays; }
+    public String getChatColor() { return chatColor; }
 }
 
 // ====================================================================================
-// MAIN PLUGIN CLASS: DynamicSurvival (แก้ไขชื่อคลาสแล้ว)
+// MAIN PLUGIN CLASS: DynamicSurvival
 // ====================================================================================
 
-public class DynamicSurvival extends JavaPlugin implements Listener {
+public class DynamicSurvival extends JavaPlugin implements Listener { // แก้ไขชื่อคลาสแล้ว
 
     private Season currentSeason = Season.SPRING;
     private int currentDay = 1;
     private long lastDayTime = 0;
     private final Map<Player, PlayerStats> playerStats = new HashMap<>();
     private final Random random = new Random();
-    private World trackedWorld; // โลกหลักที่เราจะติดตามฤดูกาล
+    private World trackedWorld; 
+    private BukkitAudiences audiences; // NEW: ตัวแปรสำหรับ Adventure Audiences
 
     @Override
     public void onEnable() {
         getLogger().info("DynamicSurvival Plugin (v" + getDescription().getVersion() + ") กำลังทำงาน!");
+        
+        // ************************ NEW: เริ่มต้น Adventure Audiences ************************
+        this.audiences = BukkitAudiences.create(this);
+        // ***********************************************************************************
         
         if (!Bukkit.getWorlds().isEmpty()) {
             trackedWorld = Bukkit.getWorlds().get(0);
@@ -90,6 +89,12 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     public void onDisable() {
         getLogger().info("DynamicSurvival Plugin ถูกปิดการทำงาน!");
         Bukkit.getScheduler().cancelTasks(this);
+        
+        // ************************ NEW: ปิด Adventure Audiences ************************
+        if (this.audiences != null) {
+            this.audiences.close();
+        }
+        // ******************************************************************************
     }
 
     @EventHandler
@@ -242,7 +247,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             player.damage(1.0);
             player.sendTitle("", "§bคุณกำลังจะแข็งตาย! (-" + (int)Math.abs(temp) + "°C)", 10, 20, 10);
         } else if (temp < 5.0f) {
-            // ใช้ SLOWNESS แทน SLOW (แก้ไขแล้ว)
             player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS, 40, 0));
         } else if (temp > 40.0f) {
             player.damage(1.0);
@@ -252,7 +256,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         }
 
         if (playerStats.get(player).getThirst() <= 10) {
-            // ใช้ NAUSEA แทน CONFUSION (แก้ไขแล้ว)
             player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.NAUSEA, 40, 0));
         }
     }
@@ -281,10 +284,10 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             currentSeason.getChatColor(), currentSeason.getThaiName(), currentDay, 
             tempColor, stats.getTemperature(), thirstBar);
 
-        // ************************ แก้ไข: ใช้ Adventure API ************************
+        // ใช้ BukkitAudiences ในการส่ง Action Bar (แก้ไขแล้ว)
         Component component = LegacyComponentSerializer.legacySection().deserialize(message);
-        player.sendActionBar(component);
-        // **************************************************************************
+        Audience playerAudience = this.audiences.player(player);
+        playerAudience.sendActionBar(component);
     }
 
     // ====================================================================================
