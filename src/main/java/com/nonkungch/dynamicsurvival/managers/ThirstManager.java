@@ -53,11 +53,22 @@ public class ThirstManager {
             PotionData data = meta.getBasePotionData();
 
             if (data.getType() == PotionType.WATER) {
-                setScore(player, "thirst", 100);
+                refillThirst(player, 100);
                 player.sendMessage(ChatColor.GREEN + "คุณดื่มน้ำและรู้สึกสดชื่นขึ้น!");
                 item.setAmount(item.getAmount() - 1);
             }
         }
+    }
+
+    // ✅ เพิ่มเมธอดนี้ (แก้ error refillThirst)
+    public void refillThirst(Player player, int amount) {
+        int thirst = getScore(player, "thirst");
+        int newThirst = Math.min(thirst + amount, MAX_THIRST);
+
+        Objective obj = Bukkit.getScoreboardManager().getMainScoreboard().getObjective("thirst");
+        if (obj != null) obj.getScore(player.getName()).setScore(newThirst);
+
+        player.sendMessage(ChatColor.AQUA + "คุณดื่มน้ำและฟื้นความกระหาย " + amount + " หน่วย!");
     }
 
     public int getScore(Player player, String objectiveName) {
