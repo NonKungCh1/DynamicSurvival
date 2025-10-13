@@ -1,120 +1,129 @@
 package com.nonkungch.dynamicsurvival.managers;
 
+import com.nonkungch.dynamicsurvival.DynamicSurvival;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.World;
+import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
 
 public class TimeManager {
-    
-    private final JavaPlugin plugin;
-    private final Scoreboard board;
-    private final long DAYS_PER_SEASON; 
-    
-    // Constants สำหรับฤดูกาล
-    public static final int SPRING = 1;
-    public static final int SUMMER = 2;
-    public static final int AUTUMN = 3;
-    public static final int WINTER = 4;
-    private static final long TICKS_IN_DAY = 24000L;
 
-    public TimeManager(JavaPlugin plugin) {
+    private final DynamicSurvival plugin;
+    private long globalTicks = 0;
+    private long gameDay = 0;
+    private String currentSeason = "Spring";
+
+    public TimeManager(DynamicSurvival plugin) {
         this.plugin = plugin;
-        this.board = Bukkit.getScoreboardManager().getMainScoreboard();
-        
-        this.DAYS_PER_SEASON = plugin.getConfig().getLong("season-length-days", 30L); 
-        
-        if (getGlobalScore("season") == 0) {
-            setGlobalScore("season", SPRING);
-        }
+        setupInitialValues();
     }
     
+    private void setupInitialValues() {
+        Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
+        
+        // Initial setup for Global Timer
+        Objective timerObj = board.getObjective("global_timer");
+        if (timerObj == null) {
+            timerObj = board.registerNewObjective("global_timer", "dummy", "Global Ticks");
+        }
+        timerObj.getScore("GLOBAL_TICK").setScore(0);
+        
+        // Initial setup for Thirst Timer
+        Objective thirstTimerObj = board.getObjective("thirst_timer");
+        if (thirstTimerObj == null) {
+            thirstTimerObj = board.registerNewObjective("thirst_timer", "dummy", "Thirst Ticks");
+        }
+        thirstTimerObj.getScore("THIRST_TICK").setScore(0);
+    }
+
     public void updateTimeAndSeason() {
-        setGlobalScore("global_timer", getGlobalScore("global_timer") + 20); 
+        // 1. Update Global Ticks (รันทุก 1 วินาทีตาม LOOP_INTERVAL)
+        Objective timerObj = Bukkit.getScoreboardManager().getMainScoreboard().getObjective("global_timer");
+        if (timerObj != null) {
+            globalTicks = timerObj.getScore("GLOBAL_TICK").getScore() + 1;
+            timerObj.getScore("GLOBAL_TICK").setScore((int) globalTicks);
+        }
         
-        long totalDays = getGlobalScore("global_timer") / TICKS_IN_DAY;
-        
-        // ตรวจสอบการเปลี่ยนฤดูกาล (โดยใช้ Modulo เพื่อจัดการการ Reset Timer)
-        if (totalDays > 0 && totalDays % DAYS_PER_SEASON == 0) {
-             changeSeason();
-             // Reset global_timer เพื่อให้ dayInSeason นับใหม่
-             setGlobalScore("global_timer", 0); 
+        // 2. Update Thirst Ticks (รันแยก)
+        Objective thirstTimerObj = Bukkit.getScoreboardManager().getMainScoreboard().getObjective("thirst_timer");
+        if (thirstTimerObj != null) {
+            int currentThirstTick = thirstTimerObj.getScore("THIRST_TICK").getScore() + 1;
+            if (currentThirstTick > (20 * 60 * 60)) { // Reset ทุกชั่วโมงเพื่อไม่ให้ Score ล้น
+                currentThirstTick = 1;
+            }
+            thirstTimerObj.getScore("THIRST_TICK").setScore(currentThirstTick);
+        }
+
+        // 3. Update Game Day (สมมติ 1 วันเกม = 1,200 Global Ticks)
+        if (globalTicks % 1200 == 0) { 
+            gameDay++;
+            updateSeason();
         }
     }
     
-    public void changeSeason() {
-        int currentSeason = getCurrentSeason();
-        int nextSeason = (currentSeason % 4) + 1;
-        setGlobalScore("season", nextSeason);
+    private void updateSeason() {
+        // ตัวอย่าง: ฤดูเปลี่ยนทุก 30 วัน
+        long dayInSeason = gameDay % 120; // 120 วันต่อปี
         
-        String seasonName = getSeasonName(nextSeason);
-        
-        // ส่งข้อความแจ้งเตือนตาม Config
-        String message = plugin.getConfig().getString("messages.season-change", "&b[DS] ฤดูกาลได้เปลี่ยนเป็น &a%season_name% &bแล้ว!");
-        message = message.replace("%season_name%", seasonName);
-        Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', message));
-        
-        // *** ระบบ Biome Color/Global Effect: ***
-        // (WINTER มีหิมะตก - สามารถใช้ Bukkit API ได้)
-        if (nextSeason == WINTER) {
-            Bukkit.getWorlds().forEach(world -> world.setStorm(true));
+        if (dayInSeason < 30) {
+            currentSeason = "Spring";
+        } else if (dayInSeason < 60) {
+            currentSeason = "Summer";
+        } else if (dayInSeason < 90) {
+            currentSeason = "Autumn";
         } else {
-            Bukkit.getWorlds().forEach(world -> world.setStorm(false));
+            currentSeason = "Winter";
+        }
+        
+        // อัพเดท Scoreboard
+        Objective seasonObj = Bukkit.getScoreboardManager().getMainScoreboard().getObjective("season");
+        if (seasonObj != null) {
+            seasonObj.getScore("CURRENT_SEASON_VALUE").setScore((int)(dayInSeason));
         }
     }
 
-    public int getCurrentSeason() {
-        return getGlobalScore("season");
+    /**
+     * ดึงค่าเวลาของโลกหลัก (World time)
+     * @return ค่าเวลาในเกม (0-24000)
+     */
+    public long getCurrentDayTime() {
+        if (Bukkit.getWorlds().isEmpty()) {
+            return 6000;
+        }
+        World world = Bukkit.getWorlds().get(0);
+        return world != null ? world.getTime() : 6000;
     }
     
     public long getGameDay() {
-        return getGlobalScore("global_timer") / TICKS_IN_DAY;
+        return gameDay;
     }
-    
-    public String getSeasonName(int season) {
-        switch (season) {
-            case SPRING: return "ใบไม้ผลิ";
-            case SUMMER: return "ร้อน";
-            case AUTUMN: return "ใบไม้ร่วง";
-            case WINTER: return "หนาว";
-            default: return "Unknown";
-        }
-    }
-    
+
     public String getSeasonDisplay() {
-        String name = getSeasonName(getCurrentSeason());
-        // กำหนดสีตามฤดู (ตามความต้องการของผู้ใช้)
-        ChatColor color = ChatColor.AQUA;
-        if (getCurrentSeason() == SUMMER) color = ChatColor.RED;
-        else if (getCurrentSeason() == WINTER) color = ChatColor.WHITE;
-        else if (getCurrentSeason() == AUTUMN) color = ChatColor.GOLD;
-        return color + name;
+        ChatColor color;
+        switch (currentSeason) {
+            case "Summer":
+                color = ChatColor.RED;
+                break;
+            case "Autumn":
+                color = ChatColor.GOLD;
+                break;
+            case "Winter":
+                color = ChatColor.AQUA;
+                break;
+            case "Spring":
+            default:
+                color = ChatColor.GREEN;
+                break;
+        }
+        return color + currentSeason;
     }
     
     public String getSeasonMonthUI() {
-        long totalTicks = getGlobalScore("global_timer");
-        long dayInSeason = totalTicks / TICKS_IN_DAY; // นับ 0-29
-        
-        int blocks = 10;
-        int filled = (int) Math.floor((double) dayInSeason / DAYS_PER_SEASON * blocks);
-        
-        ChatColor filledColor = ChatColor.GREEN;
-        if (getCurrentSeason() == WINTER) filledColor = ChatColor.BLUE;
-        else if (getCurrentSeason() == SUMMER) filledColor = ChatColor.RED;
-        else if (getCurrentSeason() == AUTUMN) filledColor = ChatColor.GOLD;
-        
-        String filledBar = filledColor + "█".repeat(filled);
-        String emptyBar = ChatColor.GRAY + "█".repeat(blocks - filled);
-        
-        return filledBar + emptyBar + ChatColor.RESET;
+        // ตัวอย่าง: แสดงความคืบหน้าของฤดู (สมมติว่า 1 เดือน = 10 วัน)
+        long dayInSeason = gameDay % 30;
+        if (dayInSeason < 10) return "[Month 1]";
+        if (dayInSeason < 20) return "[Month 2]";
+        return "[Month 3]";
     }
-
-    // Helper methods สำหรับ Global Scoreboard
-    public int getGlobalScore(String objectiveName) {
-        return board.getObjective(objectiveName).getScore("Global").getScore();
-    }
-    
-    public void setGlobalScore(String objectiveName, int value) {
-        board.getObjective(objectiveName).getScore("Global").setScore(value);
-    }
-          }
+}
