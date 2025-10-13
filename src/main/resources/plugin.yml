@@ -3,14 +3,4 @@ main: com.nonkungch.dynamicsurvival.DynamicSurvival
 version: 1.1
 api-version: 1.21
 author: NonKungCh
-
-commands:
-  ds:
-    description: "Dynamic Survival main command"
-    usage: "/ds <setseason|setthirst|settemp|info|reload>"
-    permission: dynamicsurvival.admin
-
-permissions:
-  dynamicsurvival.admin:
-    description: "Allows admin commands"
-    default: op
+description: A plugin that adds dynamic seasons, temperature, and thirst mechanics to your survival world.
