@@ -6,6 +6,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.platform.bukkit.BukkitAudiences;
 
 import com.nonkungch.dynamicsurvival.managers.TemperatureManager;
 import com.nonkungch.dynamicsurvival.managers.ThirstManager;
@@ -19,14 +20,19 @@ public class DynamicSurvival extends JavaPlugin {
     private ThirstManager thirstManager;
     private TimeManager timeManager;
 
+    private BukkitAudiences adventure;
+
     @Override
     public void onEnable() {
         instance = this;
+        adventure = BukkitAudiences.create(this);
 
+        // Init managers
         this.temperatureManager = new TemperatureManager(this);
         this.thirstManager = new ThirstManager(this);
         this.timeManager = new TimeManager(this);
 
+        // Register command & listener
         getCommand("dsurvival").setExecutor(new CommandManager(this));
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
 
@@ -45,6 +51,10 @@ public class DynamicSurvival extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (adventure != null) {
+            adventure.close();
+            adventure = null;
+        }
         getLogger().info("DynamicSurvival disabled!");
     }
 
@@ -64,8 +74,9 @@ public class DynamicSurvival extends JavaPlugin {
         return timeManager;
     }
 
+    // ส่ง ActionBar ผ่าน Adventure Platform
     public void sendActionBar(Player player, String message) {
-        player.sendActionBar(Component.text(message));
+        adventure.player(player).sendActionBar(Component.text(message));
     }
 
     // ระบบหลัก: อัปเดตผู้เล่น
@@ -80,7 +91,7 @@ public class DynamicSurvival extends JavaPlugin {
         temperatureManager.setTemperature(player, temp);
         thirstManager.setThirst(player, thirst);
 
-        // ส่ง ActionBar แบบเรียลไทม์
+        // ส่ง ActionBar
         sendActionBar(player,
                 "§eTemp: §b" + String.format("%.1f", temp) + "°C §7| Thirst: §b" + String.format("%.0f", thirst) + "%");
 
