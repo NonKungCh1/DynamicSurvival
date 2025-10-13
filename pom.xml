@@ -30,7 +30,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.spigotmc</hgroup>
+            <groupId>org.spigotmc</groupId> 
             <artifactId>spigot-api</artifactId>
             <version>1.20.4-R0.1-SNAPSHOT</version> 
             <scope>provided</scope>
