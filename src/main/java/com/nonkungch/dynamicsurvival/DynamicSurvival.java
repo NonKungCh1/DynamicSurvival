@@ -1,50 +1,33 @@
 package com.nonkungch.dynamicsurvival;
 
-import com.nonkungch.dynamicsurvival.commands.CommandManager;
-import com.nonkungch.dynamicsurvival.listeners.PlayerListener;
-import com.nonkungch.dynamicsurvival.managers.TemperatureManager;
-import com.nonkungch.dynamicsurvival.managers.ThirstManager;
-import com.nonkungch.dynamicsurvival.managers.TimeManager;
-import net.kyori.adventure.text.Component;
-import net.md_5.bungee.api.ChatMessageType;
-import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitRunnable;
 
-public final class DynamicSurvival extends JavaPlugin {
+import net.kyori.adventure.text.Component;
 
-    private TimeManager timeManager;
+import com.nonkungch.dynamicsurvival.managers.TemperatureManager;
+import com.nonkungch.dynamicsurvival.managers.TimeManager;
+import com.nonkungch.dynamicsurvival.CommandManager;
+
+public class DynamicSurvival extends JavaPlugin {
+
+    private static DynamicSurvival instance;
     private TemperatureManager temperatureManager;
-    private ThirstManager thirstManager;
+    private TimeManager timeManager;
 
     @Override
     public void onEnable() {
-        getLogger().info("DynamicSurvival has been enabled!");
+        instance = this;
 
-        // สร้าง Managers
-        timeManager = new TimeManager(this);
-        temperatureManager = new TemperatureManager(this);
-        thirstManager = new ThirstManager(this);
+        // สร้าง Manager
+        this.temperatureManager = new TemperatureManager(this);
+        this.timeManager = new TimeManager(this);
 
-        // ลงทะเบียน event & คำสั่ง
-        getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
+        // ลงทะเบียนคำสั่ง
         getCommand("dsurvival").setExecutor(new CommandManager(this));
 
-        // ตั้งเวลาอัปเดตทุก 1 วินาที
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                timeManager.updateTimeAndSeason();
-
-                for (Player player : Bukkit.getOnlinePlayers()) {
-                    temperatureManager.processTemperature(player);
-                    thirstManager.processThirst(player);
-                }
-            }
-        }.runTaskTimer(this, 0L, 20L);
+        getLogger().info("DynamicSurvival has been enabled!");
     }
 
     @Override
@@ -52,34 +35,20 @@ public final class DynamicSurvival extends JavaPlugin {
         getLogger().info("DynamicSurvival has been disabled!");
     }
 
+    public static DynamicSurvival getInstance() {
+        return instance;
+    }
+
+    public TemperatureManager getTempManager() {
+        return temperatureManager;
+    }
+
     public TimeManager getTimeManager() {
         return timeManager;
     }
 
-    public TemperatureManager getTemperatureManager() {
-        return temperatureManager;
-    }
-
-    public ThirstManager getThirstManager() {
-        return thirstManager;
-    }
-
-    // ✅ แสดงข้อมูลสถานะผ่าน ActionBar (รองรับ Spigot & Paper)
     public void sendActionBar(Player player, String message) {
-        if (Bukkit.getServer().getName().contains("Paper")) {
-            // Paper API
-            player.sendActionBar(Component.text(message));
-        } else {
-            // Spigot API
-            player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(message));
-        }
-    }
-
-    // ✅ ตัวอย่างการเรียกใช้ (สามารถเรียกได้จากที่อื่น)
-    public void showPlayerStatus(Player player) {
-        String status = ChatColor.GOLD + "[Day " + timeManager.getGameDay() + "] "
-                + timeManager.getSeasonDisplay() + " "
-                + timeManager.getSeasonMonthUI();
-        sendActionBar(player, status);
+        // ใช้ Adventure API ส่งข้อความ ActionBar แบบใหม่
+        player.sendActionBar(Component.text(message));
     }
 }
