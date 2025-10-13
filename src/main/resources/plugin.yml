@@ -1,12 +1,12 @@
-name: DynamicSurvival
-version: 1.0.0
+# ต้องแน่ใจว่าชื่อคลาสหลักถูกต้อง
 main: com.nonkungch.dynamicsurvival.DynamicSurvival
-api-version: 1.20
-authors: [NonKungCh]
-description: A complete survival overhaul with Thirst, Temperature, and Seasons.
+name: DynamicSurvival
+version: 1.0-SNAPSHOT
+author: NonKungCh
+api-version: 1.21 # สำคัญมากสำหรับ 1.21+
+
 commands:
   ds:
-    description: Dynamic Survival admin commands.
-    usage: /ds <setseason|setthirst|settemp|info>
+    description: Dynamic Survival Base Command
+    usage: /ds <temp|thirst>
     permission: dynamicsurvival.admin
-    permission-message: คุณไม่มีสิทธิ์ใช้คำสั่งนี้
