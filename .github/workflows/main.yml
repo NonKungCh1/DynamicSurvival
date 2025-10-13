@@ -1,7 +1,5 @@
-# ชื่อของ Workflow นี้
 name: Maven Build and Deploy to Release
 
-# กำหนดเหตุการณ์ที่จะกระตุ้น Workflow นี้
 on:
   push:
     branches:
@@ -9,14 +7,15 @@ on:
       - master
   workflow_dispatch:
 
-# กำหนด Jobs ที่จะรันใน Workflow
 jobs:
   build:
     runs-on: ubuntu-latest
     
     steps:
+      # 1. Checkout code
       - uses: actions/checkout@v4
-      
+
+      # 2. Set up JDK 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -28,11 +27,12 @@ jobs:
       - name: Build with Maven
         run: mvn clean package -B
 
-      # 4. คัดลอก Artifact
+      # 4. ค้นหา JAR Artifact
       - name: Find Artifact JAR
         id: find_jar
-        run: echo "JAR_PATH=$(find target/ -name "DynamicSurvival-*.jar" -print -quit)" >> $GITHUB_ENV
-        
+        run: |
+          echo "JAR_PATH=$(find target/ -name 'DynamicSurvival-*.jar' -print -quit)" >> $GITHUB_ENV
+
       # 5. Upload Artifact
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -41,27 +41,21 @@ jobs:
           path: ${{ env.JAR_PATH }}
           if-no-files-found: error
 
-      # ... (โค้ดส่วนบนสุดของ YAML เหมือนเดิม) ...
-
-# ... (Step 1 ถึง Step 5 เหมือนเดิม) ...
-
-      # 6. *** NEW STEP: Discord Notification (ใช้ Action ตัวใหม่) ***
+      # 6. Discord Notification
       - name: Discord Notification
-        uses: tsickert/discord-webhook@v7.0.0 # เปลี่ยนเป็น Action ที่ใช้งานได้
-        if: always() # ให้รันเสมอยกเว้นกรณี Error ที่ทำให้ workflow หยุดทันที
+        uses: tsickert/discord-webhook@v7.0.0
+        if: always()
         with:
-          # ใช้ key เป็น webhook-url (ตามที่ Action นี้กำหนด)
-          webhook-url: ${{ secrets.DISCORD_WEBHOOK }} 
-          # ใช้ raw-data เพื่อส่ง JSON Embed ที่สวยงาม (แนะนำ)
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
           raw-data: |
             {
               "username": "DynamicSurvival Builder",
-              "avatar_url": "https://avatars.githubusercontent.com/u/44036562", 
+              "avatar_url": "https://avatars.githubusercontent.com/u/44036562",
               "embeds": [
                 {
-                  "title": "✅ BUILD SUCCESSFUL: DynamicSurvival Plugin",
+                  "title": "${{ job.status == 'success' && '✅ BUILD SUCCESSFUL' || '❌ BUILD FAILED' }}: DynamicSurvival Plugin",
                   "description": "**Commit:** `${{ github.event.head_commit.message }}`",
-                  "color": 3066993,
+                  "color": ${{ job.status == 'success' && 3066993 || 15158332 }},
                   "fields": [
                     {
                       "name": "Version / Branch",
@@ -75,16 +69,16 @@ jobs:
                     },
                     {
                       "name": "Artifacts",
-                      "value": "[Download Artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+                      "value": "[Download Artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
                     }
                   ],
                   "timestamp": "${{ github.event.head_commit.timestamp }}"
                 }
               ]
             }
-          
-      # 7. สร้าง Release (Optional)
-      - name: Create Release (Optional)
+
+      # 7. สร้าง GitHub Release (เฉพาะ Tag)
+      - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
