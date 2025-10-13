@@ -1,0 +1,71 @@
+# ชื่อของ Workflow นี้
+name: Maven Build and Deploy to Release
+
+# กำหนดเหตุการณ์ที่จะกระตุ้น Workflow นี้
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+# กำหนด Jobs ที่จะรันใน Workflow
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      # 3. Build ด้วย Maven
+      - name: Build with Maven
+        run: mvn clean package -B
+
+      # 4. คัดลอก Artifact
+      - name: Find Artifact JAR
+        id: find_jar
+        run: echo "JAR_PATH=$(find target/ -name "DynamicSurvival-*.jar" -print -quit)" >> $GITHUB_ENV
+        
+      # 5. Upload Artifact
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DynamicSurvival-Plugin
+          path: ${{ env.JAR_PATH }}
+          if-no-files-found: error
+
+      # 6. *** NEW STEP: Discord Notification (ใช้ Secret ที่สร้างไว้) ***
+      - name: Discord Notification
+        uses: tsundere-thicc/discord-webhook@v1
+        if: always() # ให้รันเสมอยกเว้นกรณี Error ที่ทำให้ workflow หยุดทันที
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          title: "✅ BUILD SUCCESSFUL"
+          description: |
+            Plugin **DynamicSurvival** (v${{ github.ref_name }}) ถูก Build สำเร็จแล้ว!
+            
+            **Commit:** `${{ github.event.head_commit.message }}`
+            **Branch:** `${{ github.ref_name }}`
+            **Author:** ${{ github.actor }}
+            
+            [ดู Workflow Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          color: 00FF00 # สีเขียว (HEX)
+          
+      # 7. สร้าง Release (Optional)
+      - name: Create Release (Optional)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.JAR_PATH }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
