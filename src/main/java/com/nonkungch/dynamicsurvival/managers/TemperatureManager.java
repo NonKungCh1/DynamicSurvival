@@ -1,73 +1,85 @@
 package com.nonkungch.dynamicsurvival.managers;
 
-import org.bukkit.block.Biome;
+import com.nonkungch.dynamicsurvival.DynamicSurvival;
+import org.bukkit.Bukkit; // <-- แก้ไข: Import Bukkit
+import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.event.Listener;
 import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
+import org.bukkit.potion.PotionEffectType; // MINING_FATIGUE ใช้ได้ใน 1.21+
+import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
 
-import java.util.Map;
+public class TemperatureManager implements Listener {
 
-public class TemperatureManager {
+    private final DynamicSurvival plugin;
+    private final int MAX_TEMP = 100;
+    private final int MIN_TEMP = 0;
 
-    private final JavaPlugin plugin;
-    private final Scoreboard board;
-    private final TimeManager timeManager;
-    private static final int MAX_TEMP = 100;
-
-    public TemperatureManager(JavaPlugin plugin) {
+    public TemperatureManager(DynamicSurvival plugin) { 
         this.plugin = plugin;
-        this.board = Bukkit.getScoreboardManager().getMainScoreboard();
-        this.timeManager = plugin.getTimeManager();
     }
 
     public void checkAndSetupPlayer(Player player) {
+        Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
+        // ตรวจสอบและตั้งค่าเริ่มต้นอุณหภูมิสำหรับผู้เล่นใหม่
         if (getScore(player, "temp") == 0) {
-            int defaultTemp = plugin.getConfig().getInt("default-temp", 50);
-            setScore(player, "temp", defaultTemp);
+            Objective obj = board.getObjective("temp");
+            if (obj != null) {
+                obj.getScore(player.getName()).setScore(50); // ตั้งค่าเริ่มต้นที่ 50
+            }
         }
     }
 
     public void processTemperature(Player player) {
+        long gameTime = plugin.getTimeManager().getCurrentDayTime();
         int currentTemp = getScore(player, "temp");
-        int tempChange = 0;
-        Biome biome = player.getLocation().getBlock().getBiome();
-        int season = timeManager.getCurrentSeason();
+        int newTemp = currentTemp;
 
-        // 1. ปรับตาม Biome
-        if (biome.name().contains("DESERT") || biome.name().contains("NETHER")) {
-            tempChange += 2;
-        } else if (biome.name().contains("FROZEN") || biome.name().contains("SNOWY")) {
-            tempChange -= 2;
+        // ตัวอย่างตรรกะ: อุณหภูมิจะขึ้นในช่วงกลางวัน
+        if (gameTime > 2000 && gameTime < 13000) {
+            newTemp += 1; // อุณหภูมิเพิ่มขึ้น
+        } else {
+            newTemp -= 1; // อุณหภูมิลดลง
         }
-        
-        // 2. ปรับตามฤดูกาล (ดึง Modifier จาก Config)
-        String seasonNameKey = timeManager.getSeasonName(season).toUpperCase();
-        Map<String, Object> seasonalMods = plugin.getConfig().getConfigurationSection("seasonal-temp-modifier").getValues(false);
-        if (seasonalMods.containsKey(seasonNameKey)) {
-            tempChange += (int) seasonalMods.get(seasonNameKey);
+
+        // จำกัดค่า
+        newTemp = Math.min(Math.max(newTemp, MIN_TEMP), MAX_TEMP);
+
+        // นำไปใช้กับ Scoreboard
+        Objective obj = Bukkit.getScoreboardManager().getMainScoreboard().getObjective("temp");
+        if (obj != null) {
+            obj.getScore(player.getName()).setScore(newTemp);
         }
-        
-        // 3. ปรับ Scoreboard และจำกัดค่า
-        int newTemp = Math.min(MAX_TEMP, Math.max(0, currentTemp + tempChange));
-        setScore(player, "temp", newTemp);
-        
-        // 4. ผลกระทบเมื่ออุณหภูมิเกินขีดจำกัด
-        if (newTemp > 90) {
-            player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 40, 0, false, false));
-        } else if (newTemp < 10) {
-            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 40, 1, false, false));
-            player.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE, 40, 0, false, false));
-        }
+
+        // ผลกระทบจากอุณหภูมิ (Effects)
+        applyEffects(player, newTemp);
     }
     
-    // Helper methods
-    public int getScore(Player player, String objectiveName) {
-        return board.getObjective(objectiveName).getScore(player.getName()).getScore();
+    private void applyEffects(Player player, int temp) {
+        // Hot Effects
+        if (temp > 85) {
+            // ใช้ MINING_FATIGUE ซึ่งถูกต้องสำหรับ 1.21+ (แก้ไข Error 4)
+            player.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE, 20 * 15, 1, true, true)); 
+            player.setFireTicks(20); // ลุกไหม้เล็กน้อย
+            player.sendMessage(ChatColor.RED + "คุณร้อนเกินไป! ต้องหาที่เย็นๆ");
+        } else if (temp < 15) {
+            // Cold Effects
+            player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 20 * 15, 0, true, true));
+            player.sendMessage(ChatColor.AQUA + "คุณหนาวสั่น! ต้องหาที่อุ่นๆ");
+        } else {
+            // Remove Effects
+            player.removePotionEffect(PotionEffectType.MINING_FATIGUE);
+            player.removePotionEffect(PotionEffectType.WEAKNESS);
+        }
     }
 
-    public void setScore(Player player, String objectiveName, int value) {
-        board.getObjective(objectiveName).getScore(player.getName()).setScore(value);
+    public int getScore(Player player, String objectiveName) {
+        Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
+        Objective obj = board.getObjective(objectiveName);
+        if (obj != null && obj.getScore(player.getName()).isScoreSet()) {
+            return obj.getScore(player.getName()).getScore();
+        }
+        return 0;
     }
 }
