@@ -1,0 +1,51 @@
+package com.nonkungch.dynamicsurvival;
+
+import org.bukkit.Material;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
+
+public class ThirstListener implements Listener {
+
+    private final DynamicSurvival plugin;
+
+    public ThirstListener(DynamicSurvival plugin) {
+        this.plugin = plugin;
+    }
+
+    @EventHandler
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        Player player = event.getPlayer();
+        ItemStack item = event.getItem();
+
+        if (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
+            
+            // 1. ดื่มน้ำจากขวดน้ำ (Water Bottle)
+            if (item != null && item.getType() == Material.POTION && item.getItemMeta() != null && 
+                item.getItemMeta().getDisplayName().equals("Water Bottle")) {
+                
+                DynamicSurvival.PlayerStats stats = plugin.getPlayerStats(player);
+                int restoreAmount = plugin.getConfigManager().getWaterBottleRestore();
+                int maxThirst = plugin.getConfigManager().getMaxThirst();
+                
+                stats.addThirst(restoreAmount, maxThirst);
+                
+                // เปลี่ยนขวดน้ำเป็นขวดเปล่า
+                PlayerInventory inv = player.getInventory();
+                if (item.getAmount() > 1) {
+                    item.setAmount(item.getAmount() - 1);
+                    inv.addItem(new ItemStack(Material.GLASS_BOTTLE));
+                } else {
+                    inv.setItemInMainHand(new ItemStack(Material.GLASS_BOTTLE));
+                }
+
+                player.sendMessage("§b[Thirst] ดื่มน้ำ! หลอดน้ำเพิ่มขึ้น " + restoreAmount + " หน่วย.");
+                event.setCancelled(true);
+            }
+        }
+    }
+}
