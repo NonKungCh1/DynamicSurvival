@@ -38,7 +38,7 @@ public class TemperatureManager {
             newTemp -= 1;
         }
 
-        // จำกัดขอบเขต 0–100
+        // จำกัดค่าให้อยู่ในช่วง 0–100
         newTemp = Math.min(Math.max(newTemp, MIN_TEMP), MAX_TEMP);
 
         Objective obj = Bukkit.getScoreboardManager().getMainScoreboard().getObjective("temp");

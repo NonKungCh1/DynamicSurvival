@@ -3,14 +3,20 @@ package com.nonkungch.dynamicsurvival.managers;
 import com.nonkungch.dynamicsurvival.DynamicSurvival;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.PotionMeta;
+import org.bukkit.potion.PotionData;
+import org.bukkit.potion.PotionType;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
 
 public class ThirstManager {
 
     private final DynamicSurvival plugin;
-    private final int MAX_THIRST = 20;
+    private final int MAX_THIRST = 100;
+    private final int MIN_THIRST = 0;
 
     public ThirstManager(DynamicSurvival plugin) {
         this.plugin = plugin;
@@ -20,33 +26,38 @@ public class ThirstManager {
         Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
         if (getScore(player, "thirst") == 0) {
             Objective obj = board.getObjective("thirst");
-            if (obj != null) obj.getScore(player.getName()).setScore(MAX_THIRST);
+            if (obj != null) obj.getScore(player.getName()).setScore(100);
         }
     }
 
     public void processThirst(Player player) {
-        Objective timerObj = Bukkit.getScoreboardManager().getMainScoreboard().getObjective("thirst_timer");
-        if (timerObj != null && timerObj.getScore("THIRST_TICK").getScore() % (20 * 5) == 0) {
-            int currentThirst = getScore(player, "thirst");
-            if (currentThirst > 0) {
-                currentThirst--;
-                Objective thirstObj = Bukkit.getScoreboardManager().getMainScoreboard().getObjective("thirst");
-                if (thirstObj != null) thirstObj.getScore(player.getName()).setScore(currentThirst);
+        int thirst = getScore(player, "thirst");
+        thirst = Math.max(MIN_THIRST, thirst - 1);
 
-                if (currentThirst == 0) {
-                    player.damage(1.0);
-                    player.sendMessage(ChatColor.RED + "คุณขาดน้ำจนอ่อนแรง!");
-                }
-            }
+        Objective obj = Bukkit.getScoreboardManager().getMainScoreboard().getObjective("thirst");
+        if (obj != null) obj.getScore(player.getName()).setScore(thirst);
+
+        if (thirst <= 10) {
+            player.sendMessage(ChatColor.AQUA + "คุณกำลังจะขาดน้ำ! รีบดื่มน้ำโดยเร็ว");
+        }
+
+        if (thirst == 0) {
+            player.damage(1.0);
         }
     }
 
-    public void refillThirst(Player player, int amount) {
-        int current = getScore(player, "thirst");
-        int newThirst = Math.min(current + amount, MAX_THIRST);
-        Objective obj = Bukkit.getScoreboardManager().getMainScoreboard().getObjective("thirst");
-        if (obj != null) obj.getScore(player.getName()).setScore(newThirst);
-        player.sendMessage(ChatColor.AQUA + "คุณดื่มน้ำและฟื้นคืนความกระหาย!");
+    public void drinkWater(Player player) {
+        ItemStack item = player.getInventory().getItemInMainHand();
+        if (item.getType() == Material.POTION) {
+            PotionMeta meta = (PotionMeta) item.getItemMeta();
+            PotionData data = meta.getBasePotionData();
+
+            if (data.getType() == PotionType.WATER) {
+                setScore(player, "thirst", 100);
+                player.sendMessage(ChatColor.GREEN + "คุณดื่มน้ำและรู้สึกสดชื่นขึ้น!");
+                item.setAmount(item.getAmount() - 1);
+            }
+        }
     }
 
     public int getScore(Player player, String objectiveName) {

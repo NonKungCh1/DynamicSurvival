@@ -3,74 +3,85 @@ package com.nonkungch.dynamicsurvival.managers;
 import com.nonkungch.dynamicsurvival.DynamicSurvival;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.entity.Player;
-import org.bukkit.potion.PotionEffectType;
+import org.bukkit.World;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
 
 public class TimeManager {
 
     private final DynamicSurvival plugin;
-    private final int MAX_TEMP = 100;
-    private final int MIN_TEMP = 0;
+    private long globalTicks = 0;
+    private long gameDay = 0;
+    private String currentSeason = "Spring";
 
     public TimeManager(DynamicSurvival plugin) {
         this.plugin = plugin;
+        setupInitialValues();
     }
 
-    public void checkAndSetupPlayer(Player player) {
+    private void setupInitialValues() {
         Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
-        if (getScore(player, "temp") == 0) {
-            Objective obj = board.getObjective("temp");
-            if (obj != null) obj.getScore(player.getName()).setScore(50); // ค่าเริ่มต้น 50
-        }
+
+        Objective timerObj = board.getObjective("global_timer");
+        if (timerObj == null)
+            timerObj = board.registerNewObjective("global_timer", "dummy", "Global Ticks");
+        timerObj.getScore("GLOBAL_TICK").setScore(0);
+
+        Objective seasonObj = board.getObjective("season");
+        if (seasonObj == null)
+            board.registerNewObjective("season", "dummy", "Season");
     }
 
-    public void processTemperature(Player player) {
-        long gameTime = plugin.getTimeManager().getCurrentDayTime();
-        int currentTemp = getScore(player, "temp");
-        int newTemp = currentTemp;
-
-        // กลางวันร้อน กลางคืนเย็น
-        if (gameTime > 2000 && gameTime < 13000) {
-            newTemp += 1;
-        } else {
-            newTemp -= 1;
-        }
-
-        // จำกัดขอบเขต 0–100
-        newTemp = Math.min(Math.max(newTemp, MIN_TEMP), MAX_TEMP);
-
-        Objective obj = Bukkit.getScoreboardManager().getMainScoreboard().getObjective("temp");
-        if (obj != null) obj.getScore(player.getName()).setScore(newTemp);
-
-        applyEffects(player, newTemp);
-    }
-
-    private void applyEffects(Player player, int temp) {
-        if (temp > 85) {
-            player.addPotionEffect(PotionEffectType.MINING_FATIGUE.createEffect(20 * 15, 1));
-            player.setFireTicks(20);
-            player.sendMessage(ChatColor.RED + "คุณร้อนเกินไป! ต้องหาที่เย็นๆ");
-        } else if (temp < 15) {
-            player.addPotionEffect(PotionEffectType.WEAKNESS.createEffect(20 * 15, 0));
-            player.sendMessage(ChatColor.AQUA + "คุณหนาวสั่น! ต้องหาที่อุ่นๆ");
-        } else {
-            player.removePotionEffect(PotionEffectType.MINING_FATIGUE);
-            player.removePotionEffect(PotionEffectType.WEAKNESS);
-        }
-    }
-
-    public int getScore(Player player, String objectiveName) {
+    public void updateTimeAndSeason() {
         Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
-        Objective obj = board.getObjective(objectiveName);
-        if (obj != null && obj.getScore(player.getName()).isScoreSet())
-            return obj.getScore(player.getName()).getScore();
-        return 0;
+        Objective timerObj = board.getObjective("global_timer");
+
+        if (timerObj != null) {
+            globalTicks = timerObj.getScore("GLOBAL_TICK").getScore() + 1;
+            timerObj.getScore("GLOBAL_TICK").setScore((int) globalTicks);
+        }
+
+        // 1 วันในเกม = 1200 ticks (ประมาณ 60 วินาที)
+        if (globalTicks % 1200 == 0) {
+            gameDay++;
+            updateSeason();
+        }
     }
 
-    public void setScore(Player player, String obj, int value) {
-        Objective o = Bukkit.getScoreboardManager().getMainScoreboard().getObjective(obj);
-        if (o != null) o.getScore(player.getName()).setScore(value);
+    private void updateSeason() {
+        long dayInSeason = gameDay % 120;
+
+        if (dayInSeason < 30) currentSeason = "Spring";
+        else if (dayInSeason < 60) currentSeason = "Summer";
+        else if (dayInSeason < 90) currentSeason = "Autumn";
+        else currentSeason = "Winter";
+    }
+
+    public long getCurrentDayTime() {
+        if (Bukkit.getWorlds().isEmpty()) return 6000;
+        World world = Bukkit.getWorlds().get(0);
+        return world != null ? world.getTime() : 6000;
+    }
+
+    public long getGameDay() {
+        return gameDay;
+    }
+
+    public String getSeasonDisplay() {
+        ChatColor color;
+        switch (currentSeason) {
+            case "Summer": color = ChatColor.RED; break;
+            case "Autumn": color = ChatColor.GOLD; break;
+            case "Winter": color = ChatColor.AQUA; break;
+            default: color = ChatColor.GREEN; break;
+        }
+        return color + currentSeason;
+    }
+
+    public String getSeasonMonthUI() {
+        long dayInSeason = gameDay % 30;
+        if (dayInSeason < 10) return "[Month 1]";
+        if (dayInSeason < 20) return "[Month 2]";
+        return "[Month 3]";
     }
 }
