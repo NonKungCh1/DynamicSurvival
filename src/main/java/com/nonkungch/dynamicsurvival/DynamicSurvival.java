@@ -23,16 +23,14 @@ public class DynamicSurvival extends JavaPlugin {
     public void onEnable() {
         instance = this;
 
-        // Init managers
         this.temperatureManager = new TemperatureManager(this);
         this.thirstManager = new ThirstManager(this);
         this.timeManager = new TimeManager(this);
 
-        // Register command & listener
         getCommand("dsurvival").setExecutor(new CommandManager(this));
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
 
-        // เริ่มระบบอัปเดตทุก tick (1 tick = 1/20 sec)
+        // เริ่มระบบอัปเดตทุกวินาที
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -40,7 +38,7 @@ public class DynamicSurvival extends JavaPlugin {
                     updatePlayer(player);
                 }
             }
-        }.runTaskTimer(this, 0, 20); // ทุกวินาที
+        }.runTaskTimer(this, 0, 20);
 
         getLogger().info("DynamicSurvival enabled!");
     }
@@ -70,26 +68,25 @@ public class DynamicSurvival extends JavaPlugin {
         player.sendActionBar(Component.text(message));
     }
 
-    // ---- ระบบหลักอัปเดตผู้เล่น ----
+    // ระบบหลัก: อัปเดตผู้เล่น
     private void updatePlayer(Player player) {
         double temp = temperatureManager.getTemperature(player);
         double thirst = thirstManager.getThirst(player);
 
-        // อัปเดต Temperature (ตัวอย่าง: ลด 0.1 ทุก tick)
+        // ลดค่าตามเวลา
         temp -= 0.1;
-        temperatureManager.setTemperature(player, temp);
-
-        // อัปเดต Thirst (ตัวอย่าง: ลด 0.5 ทุก tick)
         thirst -= 0.5;
+
+        temperatureManager.setTemperature(player, temp);
         thirstManager.setThirst(player, thirst);
 
-        // ActionBar แสดงค่าเรียลไทม์
+        // ส่ง ActionBar แบบเรียลไทม์
         sendActionBar(player,
                 "§eTemp: §b" + String.format("%.1f", temp) + "°C §7| Thirst: §b" + String.format("%.0f", thirst) + "%");
 
         // เอฟเฟกต์ตามสภาพ
-        if (temp < 35) player.setFreezeTicks(100); // ตัวอย่าง: หนาวเกิน → Freezing
-        if (temp > 40) player.damage(1);          // ตัวอย่าง: ร้อนเกิน → Damage
-        if (thirst < 20) player.damage(1);        // ตัวอย่าง: กระหายน้ำ → Damage
+        if (temp < 35) player.setFreezeTicks(100);   // หนาวเกิน → Freezing
+        if (temp > 40) player.damage(1);            // ร้อนเกิน → Damage
+        if (thirst < 20) player.damage(1);          // กระหายน้ำ → Damage
     }
 }
