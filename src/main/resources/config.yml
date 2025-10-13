@@ -1,0 +1,23 @@
+# DynamicSurvival Configuration by NonKungCh
+
+# ระบบฤดูกาล
+# จำนวนวันในเกมต่อหนึ่งฤดูกาล (1 วันในเกม = 24000 ticks)
+season-length-days: 30 
+
+# ระบบค่าเริ่มต้น
+default-thirst: 20
+default-temp: 50
+
+# ค่าปรับเปลี่ยนอุณหภูมิร่างกายตามฤดูกาล (จะถูกบวก/ลบจากค่าที่คำนวณตาม Biome)
+seasonal-temp-modifier:
+  WINTER: -2 # อุณหภูมิพื้นฐานลดลง 2
+  SPRING: 0
+  SUMMER: 2 # อุณหภูมิพื้นฐานเพิ่มขึ้น 2
+  AUTUMN: 0
+  
+# ข้อความแจ้งเตือน (ใช้ & เพื่อเปลี่ยนสีโค้ด)
+messages:
+  season-change: "&b[DS] ฤดูกาลได้เปลี่ยนเป็น &a%season_name% &bแล้ว! เตรียมรับมือกับสภาพอากาศใหม่"
+  thirst-refill: "&b💧 ระดับน้ำเพิ่มขึ้น +%amount%!"
+  temp-set: "&e🌡️ อุณหภูมิของคุณถูกตั้งค่าเป็น &c%value%&e."
+  thirst-set: "&e💧 ระดับน้ำของคุณถูกตั้งค่าเป็น &9%value%&e."
