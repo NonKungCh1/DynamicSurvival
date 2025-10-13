@@ -1,12 +1,14 @@
-# ต้องแน่ใจว่าชื่อคลาสหลักถูกต้อง
-main: com.nonkungch.dynamicsurvival.DynamicSurvival
 name: DynamicSurvival
-version: 1.0-SNAPSHOT
+main: com.nonkungch.dynamicsurvival.DynamicSurvival
+version: 1.1
+api-version: 1.21
 author: NonKungCh
-api-version: 1.21 # สำคัญมากสำหรับ 1.21+
-
 commands:
   ds:
-    description: Dynamic Survival Base Command
-    usage: /ds <temp|thirst>
+    description: Dynamic Survival main command
+    usage: /ds <setseason|setthirst|settemp|info|reload>
     permission: dynamicsurvival.admin
+permissions:
+  dynamicsurvival.admin:
+    description: Allows admin commands
+    default: op
