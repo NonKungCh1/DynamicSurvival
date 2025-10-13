@@ -41,22 +41,47 @@ jobs:
           path: ${{ env.JAR_PATH }}
           if-no-files-found: error
 
-      # 6. *** NEW STEP: Discord Notification (ใช้ Secret ที่สร้างไว้) ***
+      # ... (โค้ดส่วนบนสุดของ YAML เหมือนเดิม) ...
+
+# ... (Step 1 ถึง Step 5 เหมือนเดิม) ...
+
+      # 6. *** NEW STEP: Discord Notification (ใช้ Action ตัวใหม่) ***
       - name: Discord Notification
-        uses: tsundere-thicc/discord-webhook@v1
+        uses: tsickert/discord-webhook@v7.0.0 # เปลี่ยนเป็น Action ที่ใช้งานได้
         if: always() # ให้รันเสมอยกเว้นกรณี Error ที่ทำให้ workflow หยุดทันที
         with:
-          webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          title: "✅ BUILD SUCCESSFUL"
-          description: |
-            Plugin **DynamicSurvival** (v${{ github.ref_name }}) ถูก Build สำเร็จแล้ว!
-            
-            **Commit:** `${{ github.event.head_commit.message }}`
-            **Branch:** `${{ github.ref_name }}`
-            **Author:** ${{ github.actor }}
-            
-            [ดู Workflow Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          color: 00FF00 # สีเขียว (HEX)
+          # ใช้ key เป็น webhook-url (ตามที่ Action นี้กำหนด)
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK }} 
+          # ใช้ raw-data เพื่อส่ง JSON Embed ที่สวยงาม (แนะนำ)
+          raw-data: |
+            {
+              "username": "DynamicSurvival Builder",
+              "avatar_url": "https://avatars.githubusercontent.com/u/44036562", 
+              "embeds": [
+                {
+                  "title": "✅ BUILD SUCCESSFUL: DynamicSurvival Plugin",
+                  "description": "**Commit:** `${{ github.event.head_commit.message }}`",
+                  "color": 3066993,
+                  "fields": [
+                    {
+                      "name": "Version / Branch",
+                      "value": "`v${{ github.ref_name }}`",
+                      "inline": true
+                    },
+                    {
+                      "name": "Author",
+                      "value": "${{ github.actor }}",
+                      "inline": true
+                    },
+                    {
+                      "name": "Artifacts",
+                      "value": "[Download Artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+                    }
+                  ],
+                  "timestamp": "${{ github.event.head_commit.timestamp }}"
+                }
+              ]
+            }
           
       # 7. สร้าง Release (Optional)
       - name: Create Release (Optional)
