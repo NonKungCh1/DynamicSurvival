@@ -8,12 +8,12 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent; // จำเป็นสำหรับ Scoreboard
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scoreboard.DisplaySlot; // จำเป็นสำหรับ Scoreboard
-import org.bukkit.scoreboard.Objective; // จำเป็นสำหรับ Scoreboard
-import org.bukkit.scoreboard.Scoreboard; // จำเป็นสำหรับ Scoreboard
+import org.bukkit.scoreboard.DisplaySlot;
+import org.bukkit.scoreboard.Objective;
+import org.bukkit.scoreboard.Scoreboard;
 
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.platform.bukkit.BukkitAudiences;
@@ -21,6 +21,8 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 import java.util.*;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 // ====================================================================================
 // ENUMERATIONS
@@ -47,11 +49,7 @@ enum Season {
     public String getThaiName() { return thaiName; }
     public String getChatColor() { return chatColor; }
     
-    /**
-     * ดำเนินการที่เกี่ยวข้องกับการเปลี่ยนแปลงโลกเมื่อฤดูกาลนี้เริ่มต้น
-     */
     public void processSeasonStart(DynamicSurvival plugin) {
-        // ใช้ Bukkit Scheduler เพื่อรันงานหลัก
         new SeasonProcessor(plugin, this).runTask(plugin);
     }
 }
@@ -66,9 +64,8 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     private int currentDay = 1;
     private long lastDayTime = 0;
     private final Map<Player, PlayerStats> playerStats = new HashMap<>();
-    private final Map<Player, Scoreboard> playerBoards = new HashMap<>(); // สำหรับ Scoreboard
+    private final Map<Player, Scoreboard> playerBoards = new HashMap<>(); 
     
-    // แก้ไข: เป็น public final เพื่อให้ SeasonProcessor เข้าถึงได้
     public final Random random = new Random(); 
     
     private World trackedWorld; 
@@ -95,7 +92,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(this, this);
         Bukkit.getPluginManager().registerEvents(new ThirstListener(this), this);
         this.getCommand("ds").setExecutor(new DSCommand(this));
-        new CalendarGUI(this); // ลงทะเบียน Calendar GUI Listener
+        new CalendarGUI(this); 
         
         // 4. Start Loops
         startSeasonAndWeatherLoop();
@@ -114,25 +111,23 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        playerStats.putIfAbsent(player, new PlayerStats(20.0f, configManager.getMaxThirst()));
-        // ตั้งค่า Scoreboard เป็นหลักไว้ก่อน เพื่อให้ Scoreboard Update Loop จัดการ
+        playerStats.putIfAbsent(player, new PlayerStats(configManager.getBaseTemp(currentSeason), configManager.getMaxThirst()));
         player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard()); 
     }
     
-    @EventHandler // เพิ่ม: Clear custom scoreboard เมื่อผู้เล่นออก
+    @EventHandler 
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         playerBoards.remove(player);
     }
     
     // ====================================================================================
-    // GETTERS สำหรับการเข้าถึงจากคลาสอื่น
+    // GETTERS
     // ====================================================================================
     public Season getCurrentSeason() { return currentSeason; }
     public int getCurrentDay() { return currentDay; }
-    // แก้ไข: getPlayerStats เป็น public method เพื่อให้ CalendarGUI เข้าถึงได้
     public PlayerStats getPlayerStats(Player p) { 
-        return playerStats.getOrDefault(p, new PlayerStats(20.0f, configManager.getMaxThirst()));
+        return playerStats.getOrDefault(p, new PlayerStats(configManager.getBaseTemp(currentSeason), configManager.getMaxThirst()));
     }
     public ConfigManager getConfigManager() { return configManager; }
     
@@ -152,7 +147,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
                 }
                 lastDayTime = currentTime;
 
-                // โอกาสที่จะเปลี่ยนสภาพอากาศ (ตาม config)
+                // แก้ไข: getWeatherChance() ถูกเพิ่มใน ConfigManager แล้ว
                 if (random.nextDouble() < configManager.getWeatherChance()) { 
                     applyRandomWeather();
                 }
@@ -182,19 +177,16 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         Bukkit.broadcastMessage(msg);
         Bukkit.broadcastMessage(seasonMsg);
 
-        // เรียกใช้การประมวลผลการเปลี่ยนฤดูกาล
         currentSeason.processSeasonStart(this);
         
         Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage("§7(โปรดทราบว่าสภาพแวดล้อมได้เปลี่ยนไปแล้ว!)"));
     }
     
-    // แก้ไข: ลดความถี่และเพิ่มสภาพอากาศ 'ตกหนัก' (ตามที่ต้องการ)
     private void applyRandomWeather() {
         if (trackedWorld == null) return;
         
-        // 1. โอกาสที่จะหยุดสภาพอากาศที่มีอยู่แล้ว (ลดความถี่)
         if (trackedWorld.hasStorm() || trackedWorld.isThundering()) {
-            if (random.nextDouble() < 0.5) { // 50% chance ที่จะหยุดถ้ามีอยู่แล้ว
+            if (random.nextDouble() < 0.5) { 
                 trackedWorld.setStorm(false);
                 trackedWorld.setThundering(false);
                 Bukkit.broadcastMessage("§e[สภาพอากาศ] เมฆฝนเคลื่อนตัวผ่านไป ท้องฟ้าแจ่มใสแล้ว.");
@@ -205,9 +197,8 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         double chance = random.nextDouble();
         
         if (chance < 0.1) {
-            // New: สภาพอากาศตกหนัก (ฝน/หิมะ)
             trackedWorld.setStorm(true);
-            trackedWorld.setThundering(true); // ใช้ Thundering เพื่อแทน "ตกหนัก" 
+            trackedWorld.setThundering(true); 
             Bukkit.broadcastMessage("§4[สภาพอากาศ] เกิดพายุตกหนัก! อุณหภูมิจะลดลงอย่างรวดเร็ว.");
         } else if (chance < 0.25) { 
             trackedWorld.setStorm(true);
@@ -218,7 +209,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             trackedWorld.setThundering(false); 
             Bukkit.broadcastMessage("§e[สภาพอากาศ] ท้องฟ้าแจ่มใส อากาศดี.");
         }
-        // ถ้าไม่เข้าเงื่อนไขใดๆ สภาพอากาศเดิมจะคงอยู่
     }
 
     // ====================================================================================
@@ -229,26 +219,22 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         new BukkitRunnable() {
             @Override
             public void run() {
-                // อ่านโหมดการแสดงผลจาก Config (ใหม่)
                 String mode = configManager.getDisplayMode(); 
                 
                 for (Player player : Bukkit.getOnlinePlayers()) {
                     PlayerStats stats = getPlayerStats(player);
                     
-                    float newTemp = calculateTemperature(player);
+                    float newTemp = calculateTemperature(player); 
                     stats.setTemperature(newTemp);
                     
                     updateThirst(player, stats, newTemp);
                     
-                    // เลือกแสดงผลตาม Config
                     if (mode.equals("SCOREBOARD")) {
                         sendScoreboardUpdate(player, stats);
-                        // เคลียร์ Action Bar
                         Component emptyComponent = LegacyComponentSerializer.legacySection().deserialize("");
                         audiences.player(player).sendActionBar(emptyComponent); 
                     } else { // Defaults to ACTION_BAR
                         sendActionBarUpdate(player, stats);
-                        // เคลียร์ Scoreboard
                         player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
                         playerBoards.remove(player);
                     }
@@ -256,11 +242,12 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
                     applyTemperatureEffects(player, newTemp);
                 }
             }
-        }.runTaskTimer(this, 40L, 40L); // อัปเดตทุก 2 วินาที
+        }.runTaskTimer(this, 40L, 40L);
     }
     
-    // Helper Method: ดึงสีตามอุณหภูมิ (ใหม่)
+    // Helper Method: ดึงสีตามอุณหภูมิ
     private ChatColor getTemperatureColor(float temp) {
+        // แก้ไข: getThresholds ถูกเพิ่มใน ConfigManager แล้ว
         if (temp < configManager.getColdTempThreshold()) {
             return ChatColor.DARK_BLUE; 
         } else if (temp < configManager.getFreezingTempThreshold()) {
@@ -276,7 +263,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         }
     }
 
-    // Helper Method: สร้างแถบหลอดน้ำ (ใหม่)
+    // Helper Method: สร้างแถบหลอดน้ำ
     private String getThirstBar(PlayerStats stats) {
         int thirstLevel = stats.getThirst();
         String thirstBar = "";
@@ -289,7 +276,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         return thirstBar;
     }
     
-    // NEW: Scoreboard Update Method
+    // Scoreboard Update Method
     private void sendScoreboardUpdate(Player player, PlayerStats stats) {
         Scoreboard board = playerBoards.get(player);
         if (board == null || board == Bukkit.getScoreboardManager().getMainScoreboard()) {
@@ -303,7 +290,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         Objective obj = board.getObjective("ds_stats");
         if (obj == null) return; 
 
-        // เคลียร์ Scoreboard เดิม
         for (String entry : board.getEntries()) {
             board.resetScores(entry);
         }
@@ -317,13 +303,13 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
 
         // --- อัปเดต Scores (เรียงจากล่างขึ้นบน) ---
         obj.getScore("§7§m=============").setScore(7); 
-        obj.getScore(seasonLine).setScore(6); // ฤดูกาล
-        obj.getScore(dayLine).setScore(5); // วันที่
-        obj.getScore("§a").setScore(4); // Spacer
-        obj.getScore(tempLine).setScore(3); // อุณหภูมิ
-        obj.getScore("§b").setScore(2); // Spacer
-        obj.getScore("§eน้ำ: " + thirstLine).setScore(1); // ระดับน้ำ
-        obj.getScore("§7§m------------").setScore(0); // Spacer
+        obj.getScore(seasonLine).setScore(6); 
+        obj.getScore(dayLine).setScore(5); 
+        obj.getScore("§a").setScore(4); 
+        obj.getScore(tempLine).setScore(3); 
+        obj.getScore("§b").setScore(2); 
+        obj.getScore("§eน้ำ: " + thirstLine).setScore(1); 
+        obj.getScore("§7§m------------").setScore(0); 
     }
     
     private float calculateTemperature(Player player) {
@@ -336,10 +322,9 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             temp -= (time - 12000) / 12000.0f * 5.0f; 
         }
 
-        // ผลจากสภาพอากาศที่ "ตกหนัก" จะลดอุณหภูมิรุนแรงขึ้น
         if (player.getWorld().hasStorm()) temp -= 3.0f; 
         if (player.getWorld().isThundering()) temp -= 5.0f; 
-        
+
         String biome = player.getLocation().getBlock().getBiome().toString();
         if (biome.contains("DESERT")) temp += 5.0f;
         if (biome.contains("SNOW") || biome.contains("TAIGA")) temp -= 5.0f;
@@ -354,27 +339,29 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     
     private void updateThirst(Player player, PlayerStats stats, float currentTemp) {
         int thirstLoss = configManager.getBaseThirstLoss();
-        if (currentTemp > configManager.getHotTempThreshold()) thirstLoss = 3;
+        // แก้ไข: getHotTempThreshold() ถูกเพิ่มใน ConfigManager แล้ว
+        if (currentTemp > configManager.getHotTempThreshold()) thirstLoss = 3; 
         if (player.isSprinting()) thirstLoss += 1; 
         
         stats.setThirst(Math.max(0, stats.getThirst() - thirstLoss));
     }
     
     private void applyTemperatureEffects(Player player, float temp) {
+        // แก้ไข: getColdTempThreshold() และอื่นๆ ถูกเพิ่มใน ConfigManager แล้ว
         if (temp < configManager.getColdTempThreshold()) {
             player.damage(1.0);
             player.sendTitle("", "§bคุณกำลังจะแข็งตาย! (-" + (int)Math.abs(temp) + "°C)", 10, 20, 10);
         } else if (temp < configManager.getFreezingTempThreshold()) {
-            player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS, 40, 0));
+            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 40, 0));
         } else if (temp > configManager.getDeadlyHotTempThreshold()) {
             player.damage(1.0);
             player.sendTitle("", "§4คุณเป็นโรคลมแดด! (+" + (int)temp + "°C)", 10, 20, 10);
         } else if (temp > configManager.getHotTempThreshold()) {
-            player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.WEAKNESS, 40, 0));
+            player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 40, 0));
         }
 
         if (getPlayerStats(player).getThirst() <= configManager.getThirstDangerLevel()) {
-            player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.NAUSEA, 40, 0));
+            player.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 40, 0));
         }
     }
     
@@ -392,7 +379,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     }
 
     // ====================================================================================
-    // PLAYER STATS CLASS (Public Static เพื่อให้คลาสอื่นเรียกใช้ได้ง่าย)
+    // PLAYER STATS CLASS
     // ====================================================================================
 
     public static class PlayerStats {

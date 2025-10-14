@@ -9,7 +9,6 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
-// แก้ไข: เพิ่ม Import สำหรับ PlayerStats เพื่อแก้ Error
 import com.nonkungch.dynamicsurvival.DynamicSurvival.PlayerStats;
 
 public class ThirstListener implements Listener {
@@ -27,17 +26,15 @@ public class ThirstListener implements Listener {
 
         if (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
             
-            // 1. ดื่มน้ำจากขวดน้ำ (Water Bottle)
             if (item != null && item.getType() == Material.POTION && item.getItemMeta() != null && 
                 item.getItemMeta().getDisplayName().equals("Water Bottle")) {
                 
-                PlayerStats stats = plugin.getPlayerStats(player); // PlayerStats ถูก Import แล้ว
+                PlayerStats stats = plugin.getPlayerStats(player);
                 int restoreAmount = plugin.getConfigManager().getWaterBottleRestore();
                 int maxThirst = plugin.getConfigManager().getMaxThirst();
                 
                 stats.addThirst(restoreAmount, maxThirst);
                 
-                // เปลี่ยนขวดน้ำเป็นขวดเปล่า
                 PlayerInventory inv = player.getInventory();
                 if (item.getAmount() > 1) {
                     item.setAmount(item.getAmount() - 1);

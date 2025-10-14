@@ -14,7 +14,6 @@ import org.bukkit.inventory.meta.SkullMeta;
 import java.util.Arrays;
 import java.util.List;
 
-// แก้ไข: เพิ่ม Import สำหรับ PlayerStats เพื่อแก้ Error
 import com.nonkungch.dynamicsurvival.DynamicSurvival.PlayerStats;
 
 public class CalendarGUI implements Listener {
@@ -25,17 +24,16 @@ public class CalendarGUI implements Listener {
         Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
-    // NEW: เมธอด: ดึง Material ของกระจกตามฤดูกาล (ตามที่คุณต้องการ)
     private static Material getGlassMaterialForSeason(Season season) {
         switch (season) {
             case SPRING:
-                return Material.LIME_STAINED_GLASS_PANE; // ใบไม้ผลิ = เขียว
+                return Material.LIME_STAINED_GLASS_PANE; 
             case SUMMER:
-                return Material.RED_STAINED_GLASS_PANE; // ฤดูร้อน = แดง
+                return Material.RED_STAINED_GLASS_PANE; 
             case AUTUMN:
-                return Material.ORANGE_STAINED_GLASS_PANE; // ใบไม้ร่วง = ส้ม
+                return Material.ORANGE_STAINED_GLASS_PANE; 
             case WINTER:
-                return Material.LIGHT_BLUE_STAINED_GLASS_PANE; // ฤดูหนาว = ฟ้า
+                return Material.LIGHT_BLUE_STAINED_GLASS_PANE; 
             default:
                 return Material.GRAY_STAINED_GLASS_PANE;
         }
@@ -44,21 +42,19 @@ public class CalendarGUI implements Listener {
     public static void openCalendar(Player player, DynamicSurvival plugin) {
         Inventory gui = Bukkit.createInventory(player, 27, GUI_TITLE);
 
-        // 1. ไอเท็มข้อมูลฤดูกาลปัจจุบัน
         Season currentSeason = plugin.getCurrentSeason();
-        ItemStack seasonInfo = createItem(getGlassMaterialForSeason(currentSeason), // ใช้วัสดุใหม่
+        ItemStack seasonInfo = createItem(getGlassMaterialForSeason(currentSeason), 
             currentSeason.getChatColor() + currentSeason.getThaiName(),
             Arrays.asList(
                 "§7--- ฤดูกาลปัจจุบัน ---",
-                "§eวันที่: §f" + plugin.getCurrentDay() + " / " + plugin.getConfigManager().getSeasonDuration(currentSeason), // แสดงวัน/วันรวม
+                "§eวันที่: §f" + plugin.getCurrentDay() + " / " + plugin.getConfigManager().getSeasonDuration(currentSeason), 
                 "§eคงเหลือ: §f" + (plugin.getConfigManager().getSeasonDuration(currentSeason) - plugin.getCurrentDay()) + " วัน",
                 " ",
                 "§7อุณหภูมิพื้นฐาน: §f" + plugin.getConfigManager().getBaseTemp(currentSeason) + "°C"
             ));
         gui.setItem(13, seasonInfo);
 
-        // 2. ไอเท็มสำหรับผู้เล่น
-        PlayerStats stats = plugin.getPlayerStats(player); // PlayerStats ถูก Import แล้ว
+        PlayerStats stats = plugin.getPlayerStats(player);
         ItemStack playerHead = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) playerHead.getItemMeta();
         meta.setOwningPlayer(player);
@@ -71,11 +67,10 @@ public class CalendarGUI implements Listener {
         playerHead.setItemMeta(meta);
         gui.setItem(4, playerHead);
 
-        // 3. ไอเท็มฤดูกาลอื่น (ใช้กระจกสีที่เหมาะสม)
         int slot = 18;
         for (Season season : Season.values()) {
             if (season != currentSeason) {
-                gui.setItem(slot++, createItem(getGlassMaterialForSeason(season), // ใช้วัสดุใหม่
+                gui.setItem(slot++, createItem(getGlassMaterialForSeason(season), 
                     season.getChatColor() + season.getThaiName(),
                     Arrays.asList(
                         "§7--- ข้อมูล ---",
