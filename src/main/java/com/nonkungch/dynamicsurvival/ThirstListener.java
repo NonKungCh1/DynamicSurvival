@@ -65,6 +65,7 @@ public class ThirstListener implements Listener {
                 } else {
                     // ถ้าเหลือขวดเดียว ให้เปลี่ยนเป็นขวดเปล่าในมือทันที
                     PlayerInventory inv = player.getInventory();
+                    // ตรวจสอบทั้ง MainHand และ OffHand 
                     if (inv.getItemInMainHand().equals(item)) {
                         inv.setItemInMainHand(emptyBottle);
                     } else if (inv.getItemInOffHand().equals(item)) {

@@ -9,16 +9,17 @@ import java.util.Map;
 public class ThirstManager {
 
     private final DynamicSurvival plugin;
-    // ใช้ Double เพื่อความแม่นยำในการคำนวณ loss
     private final Map<Player, Double> thirsts = new HashMap<>(); 
-    private final double DEFAULT_THIRST = 100.0;
+    // ใช้ค่าเริ่มต้นเป็น Max Level จาก Config (แต่ต้องมีการโหลด Config ก่อน)
+    private final double DEFAULT_THIRST = 100.0; 
 
     public ThirstManager(DynamicSurvival plugin) {
         this.plugin = plugin;
     }
 
     public double getThirst(Player player) {
-        return thirsts.getOrDefault(player, DEFAULT_THIRST);
+        // ให้ค่าเริ่มต้นเป็น Max Level จาก Config ถ้าผู้เล่นยังไม่เคยมีข้อมูล
+        return thirsts.getOrDefault(player, (double)plugin.getConfigManager().getMaxThirst()); 
     }
 
     public void setThirst(Player player, double value) {
@@ -29,10 +30,9 @@ public class ThirstManager {
     }
     
     /**
-     * **NEW: เพิ่มค่าความกระหาย**
+     * เพิ่มค่าความกระหาย
      */
     public void addThirst(Player player, double amount) {
-        double maxThirst = plugin.getConfigManager().getMaxThirst();
         double current = getThirst(player);
         double newThirst = current + amount;
         setThirst(player, newThirst);

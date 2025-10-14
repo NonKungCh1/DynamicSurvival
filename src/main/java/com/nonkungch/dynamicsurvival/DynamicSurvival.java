@@ -6,6 +6,10 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.World;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.event.Listener;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.platform.bukkit.BukkitAudiences;
@@ -13,7 +17,7 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 import com.nonkungch.dynamicsurvival.managers.TemperatureManager;
 import com.nonkungch.dynamicsurvival.managers.ThirstManager;
-import com.nonkungch.dynamicsurvival.managers.TimeManager;
+import com.nonkungch.dynamicsurvival.managers.TimeManager; // ตรวจสอบว่า package นี้ถูกต้อง
 
 import java.util.Random;
 
@@ -46,7 +50,7 @@ enum Season {
 // MAIN PLUGIN CLASS
 // ====================================================================================
 
-public class DynamicSurvival extends JavaPlugin {
+public class DynamicSurvival extends JavaPlugin implements Listener { // เพิ่ม implements Listener
 
     private static DynamicSurvival instance;
 
@@ -58,16 +62,16 @@ public class DynamicSurvival extends JavaPlugin {
     
     // Core State
     private World trackedWorld;
-    private Random random = new Random();
+    private final Random random = new Random(); // เปลี่ยนเป็น final
     
     // Season & Time State
     private Season currentSeason = Season.SPRING;
     private int currentDay = 1;
     private long lastDayTime = 0; 
     
-    // **WEATHER STATE (ได้รับการแก้ไข)**
+    // **WEATHER STATE**
     private boolean isWeatherRunning = false;
-    private int weatherDurationLeft = 0; // ระยะเวลาคงเหลือของฝน (หน่วยเป็นวัน)
+    private int weatherDurationLeft = 0; 
 
     private BukkitAudiences adventure;
 
@@ -97,12 +101,13 @@ public class DynamicSurvival extends JavaPlugin {
         }
         
         // 3. Register Events & Command
-        getServer().getPluginManager().registerEvents(new PlayerListener(this), this); // assumed PlayerListener
-        getServer().getPluginManager().registerEvents(new ThirstListener(this), this);
-        // Assuming CommandManager is renamed to DSCommand
-        getCommand("ds").setExecutor(new DSCommand(this)); 
+        // ต้องมั่นใจว่า DSCommand และ CalendarGUI.java อยู่ใน package เดียวกัน
+        getCommand("ds").setExecutor(new DSCommand(this)); // Assume DSCommand exists
+        getServer().getPluginManager().registerEvents(new PlayerListener(this), this); // assumed PlayerListener exists
+        getServer().getPluginManager().registerEvents(new ThirstListener(this), this); 
+        getServer().getPluginManager().registerEvents(this, this); // สำหรับ PlayerJoin/Quit
 
-        // 4. Start Loops (ใช้ Config สำหรับความถี่)
+        // 4. Start Loops
         startSeasonAndWeatherLoop(); 
         startStatsUpdateLoop();
         
@@ -117,6 +122,17 @@ public class DynamicSurvival extends JavaPlugin {
         }
         getLogger().info("DynamicSurvival disabled!");
     }
+    
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        // เมื่อผู้เล่นเข้าเกม ค่าเริ่มต้นจะถูกกำหนดใน Manager
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        // อาจจะลบข้อมูลผู้เล่นออกจาก Map ใน Manager เพื่อประหยัดหน่วยความจำ
+    }
+
 
     // --- Getters ---
     public static DynamicSurvival getInstance() { return instance; }
@@ -126,30 +142,39 @@ public class DynamicSurvival extends JavaPlugin {
     public TimeManager getTimeManager() { return timeManager; }
     public Season getCurrentSeason() { return currentSeason; }
     public int getCurrentDay() { return currentDay; }
+    public Random getRandom() { return random; } // แก้ไข: เพิ่ม Getter สำหรับ random
+    
+    public void sendActionBar(Player player, double temp, double thirst) {
+        ChatColor tempColor = getTemperatureColor(temp);
+        String thirstBar = getThirstBar(thirst);
+        String seasonDisplay = currentSeason.getChatColor() + currentSeason.getThaiName();
+        String dayDisplay = String.valueOf(currentDay);
 
-    // ส่ง ActionBar ผ่าน Adventure Platform
-    public void sendActionBar(Player player, String message) {
-        adventure.player(player).sendActionBar(Component.text(message));
+        String message = String.format("§f[ปฏิทิน: %s§f - วันที่ %s]   |   [อุณหภูมิ: %s%.1f°C§f]   |   [น้ำ: %s§f]",
+            seasonDisplay, dayDisplay, 
+            tempColor, temp, thirstBar);
+
+        Component component = LegacyComponentSerializer.legacySection().deserialize(message);
+        adventure.player(player).sendActionBar(component);
     }
     
     // ====================================================================================
-    // 1. ระบบฤดูกาล & ปฏิทิน & สภาพอากาศ (แก้ไข Logic สภาพอากาศ)
+    // 1. ระบบฤดูกาล & ปฏิทิน & สภาพอากาศ (Logic ถูกต้องตาม Config)
     // ====================================================================================
 
     private void startSeasonAndWeatherLoop() {
+        // Logic การตรวจจับวันใหม่ และการเริ่ม/หยุดสภาพอากาศ... (โค้ดเดิม)
         new BukkitRunnable() {
             @Override
             public void run() {
                 if (trackedWorld == null) return;
                 
                 long currentTime = trackedWorld.getFullTime();
-                // ตรวจสอบการเปลี่ยนวัน
                 if (currentTime / 24000 > lastDayTime / 24000) {
                     onNewDay(); 
                 }
                 lastDayTime = currentTime;
                 
-                // ตรวจสอบ/ลดระยะเวลาสภาพอากาศที่มีอยู่เมื่อเข้าสู่วันใหม่
                 if (isWeatherRunning && trackedWorld.getFullTime() % 24000 == 1000) { 
                     if (weatherDurationLeft > 0) {
                          weatherDurationLeft--;
@@ -165,12 +190,10 @@ public class DynamicSurvival extends JavaPlugin {
     private void onNewDay() {
         currentDay++;
         
-        // 1. ตรวจสอบสภาพอากาศใหม่ ถ้าโลกกำลังแจ่มใสเท่านั้น
         if (!isWeatherRunning) {
             checkAndStartWeather();
         }
 
-        // 2. ตรวจสอบการเปลี่ยนฤดูกาล
         if (currentDay > configManager.getSeasonDuration(currentSeason)) {
             changeSeason();
         } else {
@@ -182,13 +205,13 @@ public class DynamicSurvival extends JavaPlugin {
     
     private void checkAndStartWeather() {
         
-        // 1. ฝนปกติ: เกิด 1-3 วัน/รอบ, ตก 1-2 วัน (ใช้ Config)
         int normalMin = configManager.getNormalRainMinDay();
         int normalMax = configManager.getNormalRainMaxDay();
         double normalChance = configManager.getNormalRainChance();
         int normalDurationMin = configManager.getNormalRainDurationMin();
         int normalDurationMax = configManager.getNormalRainDurationMax();
 
+        // 1. ฝนปกติ
         if (currentDay >= normalMin && currentDay <= normalMax) {
             if (random.nextDouble() < normalChance) { 
                 int duration = random.nextInt(normalDurationMax - normalDurationMin + 1) + normalDurationMin;
@@ -197,13 +220,13 @@ public class DynamicSurvival extends JavaPlugin {
             }
         }
 
-        // 2. ฝนตกหนัก: เกิด 5-6 วัน/รอบ, ตก 4-5 วัน (ใช้ Config)
         int heavyMin = configManager.getHeavyStormMinDay();
         int heavyMax = configManager.getHeavyStormMaxDay();
         double heavyChance = configManager.getHeavyStormChance();
         int heavyDurationMin = configManager.getHeavyStormDurationMin();
         int heavyDurationMax = configManager.getHeavyStormDurationMax();
 
+        // 2. ฝนตกหนัก
         if (currentDay >= heavyMin && currentDay <= heavyMax) {
             if (random.nextDouble() < heavyChance) { 
                 int duration = random.nextInt(heavyDurationMax - heavyDurationMin + 1) + heavyDurationMin;
@@ -212,7 +235,7 @@ public class DynamicSurvival extends JavaPlugin {
             }
         }
         
-        // รีเซ็ตตัวนับวันถ้าเกินรอบสูงสุดของโอกาสเกิดสภาพอากาศ (เพื่อให้วนรอบใหม่ 1-6)
+        // รีเซ็ตตัวนับวันถ้าเกินรอบสูงสุดของโอกาสเกิดสภาพอากาศ
         if (currentDay > heavyMax) {
             currentDay = 1; 
         }
@@ -255,12 +278,12 @@ public class DynamicSurvival extends JavaPlugin {
         Bukkit.broadcastMessage(String.format("§6[ปฏิทิน] ฤดูกาลเปลี่ยนเป็น: %s%s§6 แล้ว!", 
             currentSeason.getChatColor(), currentSeason.getThaiName()));
         
-        // Assume SeasonProcessor exists and is a BukkitRunnable
-        // new SeasonProcessor(this, currentSeason).runTaskAsynchronously(this);
+        // รัน SeasonProcessor ใน Asynchronous thread
+        new SeasonProcessor(this, currentSeason).runTaskAsynchronously(this);
     }
 
     // ====================================================================================
-    // 2. ระบบอัปเดตสถานะผู้เล่น & Action Bar / Scoreboard
+    // 2. ระบบอัปเดตสถานะผู้เล่น
     // ====================================================================================
     
     private void startStatsUpdateLoop() {
@@ -287,12 +310,11 @@ public class DynamicSurvival extends JavaPlugin {
         // Apply Thirst Loss
         thirstManager.setThirst(player, thirst - thirstLoss);
         
-        // 2. Temperature Logic (ตัวอย่างการลด/เพิ่มอุณหภูมิ)
-        // คุณอาจจะต้องเขียน logic การปรับอุณหภูมิตามไบโอม/เสื้อผ้าเพิ่มเติม
-        // ในตัวอย่างนี้ ลดอุณหภูมิพื้นฐาน
-        double tempChange = -0.1; 
+        // 2. Temperature Logic (การปรับค่าอุณหภูมิพื้นฐาน)
+        double tempChange = -0.1; // ลดลงช้าๆ เมื่อไม่ได้ทำอะไร
         if (trackedWorld != null && trackedWorld.hasStorm()) {
-            tempChange += configManager.getTempModifierOnRain() / 10.0; // หารเพื่อลดผลกระทบ
+            // ลดอุณหภูมิเพิ่มเติมเมื่อมีฝน
+            tempChange += configManager.getTempModifierOnRain() / 10.0; 
         }
         temperatureManager.setTemperature(player, temp + tempChange);
 
@@ -313,22 +335,11 @@ public class DynamicSurvival extends JavaPlugin {
         }
         
         // 4. Display Status (ใช้ Config)
-        // ในโค้ดตัวอย่างนี้ จะใช้ ActionBar ตามที่ตั้งค่าใน Config
-        sendActionBar(player, currentTemp, currentThirst);
-    }
-
-    private void sendActionBar(Player player, double temp, double thirst) {
-        ChatColor tempColor = getTemperatureColor(temp);
-        String thirstBar = getThirstBar(thirst);
-        String seasonDisplay = currentSeason.getChatColor() + currentSeason.getThaiName();
-        String dayDisplay = String.valueOf(currentDay);
-
-        String message = String.format("§f[ปฏิทิน: %s§f - วันที่ %s]   |   [อุณหภูมิ: %s%.1f°C§f]   |   [น้ำ: %s§f]",
-            seasonDisplay, dayDisplay, 
-            tempColor, temp, thirstBar);
-
-        Component component = LegacyComponentSerializer.legacySection().deserialize(message);
-        adventure.player(player).sendActionBar(component);
+        if (configManager.getDisplayMode().equalsIgnoreCase("SCOREBOARD")) {
+            // (ต้องมี ScoreboardManager.java)
+        } else {
+            sendActionBar(player, currentTemp, currentThirst);
+        }
     }
     
     private ChatColor getTemperatureColor(double temp) {
@@ -340,7 +351,7 @@ public class DynamicSurvival extends JavaPlugin {
     private String getThirstBar(double thirst) {
         int max = configManager.getMaxThirst();
         int bars = 10;
-        int filledBars = (int) Math.ceil((double) thirst / max * bars);
+        int filledBars = (int) Math.ceil(thirst / max * bars);
         
         StringBuilder bar = new StringBuilder();
         
