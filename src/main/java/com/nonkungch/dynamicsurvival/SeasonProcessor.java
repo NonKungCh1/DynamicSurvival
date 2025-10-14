@@ -4,7 +4,6 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
-import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.Arrays;
@@ -54,7 +53,7 @@ public class SeasonProcessor extends BukkitRunnable {
              chunksToProcess.add(world.getChunkAt(0, 0));
         }
 
-        // ประมวลผลแต่ละ Chunk (Note: This still runs on the main thread and can cause lag)
+        // ประมวลผลแต่ละ Chunk 
         for (org.bukkit.Chunk chunk : chunksToProcess) {
              processChunk(chunk);
         }
@@ -81,13 +80,11 @@ public class SeasonProcessor extends BukkitRunnable {
     
     private void handleLeaves(Block block) {
          if (newSeason == Season.AUTUMN) {
-            // ฤดูใบไม้ร่วง: ใบไม้มีโอกาสร่วง (40% Chance ที่ใบไม้จะหายไป)
+            // ฤดูใบไม้ร่วง: ใบไม้มีโอกาสร่วง (ใช้ plugin.random ที่เป็น public)
             if (plugin.random.nextDouble() < 0.4) { 
                 block.setType(Material.AIR);
             }
         }
-        // เราจะไม่จัดการการเติบโตของใบไม้ใน SPRING ตรงนี้ เพราะมันซับซ้อนมาก
-        // จะใช้ผลทางอ้อมจากการละลายของหิมะแทน
     }
     
     private void handleBiomeEffects(Block block) {
@@ -100,10 +97,8 @@ public class SeasonProcessor extends BukkitRunnable {
         if (newSeason == Season.WINTER) {
             // ฤดูหนาว: หิมะตกในทุกไบโอมที่ไม่ได้ร้อนจัด
             if (block.getY() > 60 && block.getRelative(0, 1, 0).getType() == Material.AIR) {
-                // ต้องเป็นบล็อกที่เหมาะสมในการรองรับหิมะ
                 if (block.getType().isSolid()) {
                     Block blockAbove = block.getRelative(0, 1, 0);
-                    // ป้องกันการทับซ้อนกับบล็อกอื่นๆ เช่น ดอกไม้
                     if (blockAbove.getType() == Material.AIR) {
                          blockAbove.setType(Material.SNOW);
                     }

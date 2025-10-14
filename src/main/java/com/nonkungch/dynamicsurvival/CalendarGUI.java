@@ -14,6 +14,9 @@ import org.bukkit.inventory.meta.SkullMeta;
 import java.util.Arrays;
 import java.util.List;
 
+// แก้ไข: เพิ่ม Import สำหรับ PlayerStats เพื่อแก้ Error
+import com.nonkungch.dynamicsurvival.DynamicSurvival.PlayerStats;
+
 public class CalendarGUI implements Listener {
 
     private static final String GUI_TITLE = "§9§lDynamicSurvival ปฏิทิน";
@@ -22,7 +25,7 @@ public class CalendarGUI implements Listener {
         Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
-    // เมธอด: ดึง Material ของกระจกตามฤดูกาล (ตามที่คุณต้องการ)
+    // NEW: เมธอด: ดึง Material ของกระจกตามฤดูกาล (ตามที่คุณต้องการ)
     private static Material getGlassMaterialForSeason(Season season) {
         switch (season) {
             case SPRING:
@@ -43,7 +46,7 @@ public class CalendarGUI implements Listener {
 
         // 1. ไอเท็มข้อมูลฤดูกาลปัจจุบัน
         Season currentSeason = plugin.getCurrentSeason();
-        ItemStack seasonInfo = createItem(getGlassMaterialForSeason(currentSeason), 
+        ItemStack seasonInfo = createItem(getGlassMaterialForSeason(currentSeason), // ใช้วัสดุใหม่
             currentSeason.getChatColor() + currentSeason.getThaiName(),
             Arrays.asList(
                 "§7--- ฤดูกาลปัจจุบัน ---",
@@ -55,7 +58,7 @@ public class CalendarGUI implements Listener {
         gui.setItem(13, seasonInfo);
 
         // 2. ไอเท็มสำหรับผู้เล่น
-        DynamicSurvival.PlayerStats stats = plugin.getPlayerStats(player);
+        PlayerStats stats = plugin.getPlayerStats(player); // PlayerStats ถูก Import แล้ว
         ItemStack playerHead = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) playerHead.getItemMeta();
         meta.setOwningPlayer(player);
@@ -72,7 +75,7 @@ public class CalendarGUI implements Listener {
         int slot = 18;
         for (Season season : Season.values()) {
             if (season != currentSeason) {
-                gui.setItem(slot++, createItem(getGlassMaterialForSeason(season), 
+                gui.setItem(slot++, createItem(getGlassMaterialForSeason(season), // ใช้วัสดุใหม่
                     season.getChatColor() + season.getThaiName(),
                     Arrays.asList(
                         "§7--- ข้อมูล ---",
