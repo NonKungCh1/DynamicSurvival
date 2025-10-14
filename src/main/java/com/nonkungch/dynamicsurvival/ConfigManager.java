@@ -17,6 +17,17 @@ public class ConfigManager {
         this.config = plugin.getConfig();
     }
     
+    // --- System Settings ---
+    public int getUpdateFrequencyTicks() {
+        return config.getInt("system.update-frequency-ticks", 60);
+    }
+    public String getTrackedWorldName() {
+        return config.getString("system.tracked-world-name", "world");
+    }
+    public String getDisplayMode() {
+        return config.getString("system.display-mode", "ACTION_BAR");
+    }
+
     // --- Season Durations ---
     public int getSeasonDuration(Season season) {
         return config.getInt("season-duration." + season.toString().toLowerCase(), 20);
@@ -26,8 +37,8 @@ public class ConfigManager {
     public int getMaxThirst() {
         return config.getInt("thirst.max-level", 100);
     }
-    public int getBaseThirstLoss() {
-        return config.getInt("thirst.base-loss-per-update", 1);
+    public double getBaseThirstLoss() { 
+        return config.getDouble("thirst.base-loss-per-update", 1.0);
     }
     public int getThirstDangerLevel() {
         return config.getInt("thirst.danger-level", 10);
@@ -35,38 +46,61 @@ public class ConfigManager {
     public int getWaterBottleRestore() {
         return config.getInt("thirst.water-bottle-restore", 40);
     }
+    public double getSprintMultiplier() {
+        return config.getDouble("thirst.sprint-multiplier", 2.0);
+    }
+    public double getActionLossPerBlock() {
+        return config.getDouble("thirst.action-loss-per-block", 0.5);
+    }
     
     // --- Temperature Settings ---
     public float getBaseTemp(Season season) {
         return (float) config.getDouble("temperature.base-temp." + season.toString().toLowerCase(), 25.0);
     }
-    public float getNormalTempThreshold() {
-        return (float) config.getDouble("temperature.thresholds.normal", 25.0);
+    public float getFreezingThreshold() {
+        return (float) config.getDouble("temperature.effects.freezing-threshold", 5.0);
     }
-    public float getHotTempThreshold() {
-        return (float) config.getDouble("temperature.thresholds.hot", 35.0);
+    public float getHotThreshold() {
+        return (float) config.getDouble("temperature.effects.hot-threshold", 40.0);
     }
-    public float getDeadlyHotTempThreshold() {
-        return (float) config.getDouble("temperature.thresholds.deadly-hot", 40.0);
-    }
-    public float getFreezingTempThreshold() {
-        return (float) config.getDouble("temperature.thresholds.freezing", 5.0);
-    }
-    public float getColdTempThreshold() {
-        return (float) config.getDouble("temperature.thresholds.deadly-cold", -5.0);
+    public double getDamageAmount() {
+        return config.getDouble("temperature.effects.damage-amount", 1.0);
     }
     
     // --- Weather Settings ---
-    public double getWeatherChance() {
-        return config.getDouble("weather.chance-to-change", 0.2);
+    public double getTempModifierOnRain() {
+        return config.getDouble("weather.temp-modifier-on-rain", -5.0);
     }
-    
-    // **NEW: Display Mode Setting**
-    /**
-     * Gets the preferred display mode for player stats. 
-     * Valid values are "ACTION_BAR" or "SCOREBOARD". Defaults to "ACTION_BAR".
-     */
-    public String getDisplayMode() {
-        return config.getString("display.mode", "ACTION_BAR").toUpperCase();
+    // Normal Rain
+    public double getNormalRainChance() {
+        return config.getDouble("weather.normal-rain.chance", 0.33);
+    }
+    public int getNormalRainMinDay() {
+        return config.getInt("weather.normal-rain.min-day-occurrence", 1);
+    }
+    public int getNormalRainMaxDay() {
+        return config.getInt("weather.normal-rain.max-day-occurrence", 3);
+    }
+    public int getNormalRainDurationMin() {
+        return config.getInt("weather.normal-rain.duration-min-days", 1);
+    }
+    public int getNormalRainDurationMax() {
+        return config.getInt("weather.normal-rain.duration-max-days", 2);
+    }
+    // Heavy Storm
+    public double getHeavyStormChance() {
+        return config.getDouble("weather.heavy-storm.chance", 0.50);
+    }
+    public int getHeavyStormMinDay() {
+        return config.getInt("weather.heavy-storm.min-day-occurrence", 5);
+    }
+    public int getHeavyStormMaxDay() {
+        return config.getInt("weather.heavy-storm.max-day-occurrence", 6);
+    }
+    public int getHeavyStormDurationMin() {
+        return config.getInt("weather.heavy-storm.duration-min-days", 4);
+    }
+    public int getHeavyStormDurationMax() {
+        return config.getInt("weather.heavy-storm.duration-max-days", 5);
     }
 }

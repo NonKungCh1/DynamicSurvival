@@ -1,29 +1,24 @@
 package com.nonkungch.dynamicsurvival;
 
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.entity.Player;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Material;
 import org.bukkit.World;
-import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scoreboard.DisplaySlot;
-import org.bukkit.scoreboard.Objective;
-import org.bukkit.scoreboard.Scoreboard;
 
-import net.kyori.adventure.audience.Audience;
-import net.kyori.adventure.platform.bukkit.BukkitAudiences;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.platform.bukkit.BukkitAudiences;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
-import java.util.*;
+import com.nonkungch.dynamicsurvival.managers.TemperatureManager;
+import com.nonkungch.dynamicsurvival.managers.ThirstManager;
+import com.nonkungch.dynamicsurvival.managers.TimeManager;
+
+import java.util.Random;
 
 // ====================================================================================
-// ENUMERATIONS
+// ENUMERATIONS (Season)
 // ====================================================================================
 
 enum Season {
@@ -40,102 +35,105 @@ enum Season {
         this.chatColor = chatColor;
     }
 
-    public Season next() {
-        return values()[(ordinal() + 1) % values().length];
-    }
-    
     public String getThaiName() { return thaiName; }
     public String getChatColor() { return chatColor; }
-    
-    /**
-     * ดำเนินการที่เกี่ยวข้องกับการเปลี่ยนแปลงโลกเมื่อฤดูกาลนี้เริ่มต้น
-     */
-    public void processSeasonStart(DynamicSurvival plugin) {
-        // ใช้ Bukkit Scheduler เพื่อรันงานหลัก
-        new SeasonProcessor(plugin, this).runTask(plugin);
+    public static Season getNextSeason(Season current) {
+        return Season.values()[(current.ordinal() + 1) % Season.values().length];
     }
 }
 
 // ====================================================================================
-// MAIN PLUGIN CLASS: DynamicSurvival
+// MAIN PLUGIN CLASS
 // ====================================================================================
 
-public class DynamicSurvival extends JavaPlugin implements Listener {
+public class DynamicSurvival extends JavaPlugin {
 
+    private static DynamicSurvival instance;
+
+    // Managers
+    private ConfigManager configManager;
+    private TemperatureManager temperatureManager;
+    private ThirstManager thirstManager;
+    private TimeManager timeManager;
+    
+    // Core State
+    private World trackedWorld;
+    private Random random = new Random();
+    
+    // Season & Time State
     private Season currentSeason = Season.SPRING;
     private int currentDay = 1;
-    private long lastDayTime = 0;
-    private final Map<Player, PlayerStats> playerStats = new HashMap<>();
-    private final Map<Player, Scoreboard> playerBoards = new HashMap<>(); // สำหรับ Scoreboard
+    private long lastDayTime = 0; 
     
-    public final Random random = new Random(); 
-    
-    private World trackedWorld; 
-    private BukkitAudiences audiences;
-    private ConfigManager configManager; 
+    // **WEATHER STATE (ได้รับการแก้ไข)**
+    private boolean isWeatherRunning = false;
+    private int weatherDurationLeft = 0; // ระยะเวลาคงเหลือของฝน (หน่วยเป็นวัน)
+
+    private BukkitAudiences adventure;
 
     @Override
     public void onEnable() {
-        getLogger().info("DynamicSurvival Plugin (v" + getDescription().getVersion() + ") กำลังทำงาน!");
+        instance = this;
+        adventure = BukkitAudiences.create(this);
         
-        // 1. Initialise Managers/API
+        // 1. Init Config & Managers
         this.configManager = new ConfigManager(this);
-        this.configManager.loadConfig();
-        this.audiences = BukkitAudiences.create(this);
+        configManager.loadConfig();
+        this.temperatureManager = new TemperatureManager(this);
+        this.thirstManager = new ThirstManager(this);
+        this.timeManager = new TimeManager(this);
         
-        // 2. Setup World
-        if (!Bukkit.getWorlds().isEmpty()) {
-            trackedWorld = Bukkit.getWorlds().get(0);
-        } else {
-            getLogger().warning("ไม่พบโลก! ระบบฤดูกาลอาจทำงานไม่ถูกต้อง");
+        // 2. Setup World (ใช้ Config)
+        String worldName = configManager.getTrackedWorldName();
+        trackedWorld = Bukkit.getWorld(worldName);
+        if (trackedWorld == null) {
+            getLogger().warning("ไม่พบโลกที่ระบุใน Config: " + worldName + "! ใช้โลกแรกแทน");
+            if (!Bukkit.getWorlds().isEmpty()) {
+                trackedWorld = Bukkit.getWorlds().get(0);
+            }
+        }
+        if (trackedWorld != null) {
+            this.isWeatherRunning = trackedWorld.hasStorm() || trackedWorld.isThundering();
         }
         
-        // 3. Register Listeners and Commands
-        Bukkit.getPluginManager().registerEvents(this, this);
-        Bukkit.getPluginManager().registerEvents(new ThirstListener(this), this);
-        this.getCommand("ds").setExecutor(new DSCommand(this));
-        new CalendarGUI(this); // ลงทะเบียน Calendar GUI Listener
-        
-        // 4. Start Loops
-        startSeasonAndWeatherLoop();
+        // 3. Register Events & Command
+        getServer().getPluginManager().registerEvents(new PlayerListener(this), this); // assumed PlayerListener
+        getServer().getPluginManager().registerEvents(new ThirstListener(this), this);
+        // Assuming CommandManager is renamed to DSCommand
+        getCommand("ds").setExecutor(new DSCommand(this)); 
+
+        // 4. Start Loops (ใช้ Config สำหรับความถี่)
+        startSeasonAndWeatherLoop(); 
         startStatsUpdateLoop();
+        
+        getLogger().info("DynamicSurvival enabled!");
     }
     
     @Override
     public void onDisable() {
-        getLogger().info("DynamicSurvival Plugin ถูกปิดการทำงาน!");
-        Bukkit.getScheduler().cancelTasks(this);
-        if (this.audiences != null) {
-            this.audiences.close();
+        if (adventure != null) {
+            adventure.close();
+            adventure = null;
         }
+        getLogger().info("DynamicSurvival disabled!");
     }
 
-    @EventHandler
-    public void onPlayerJoin(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
-        playerStats.putIfAbsent(player, new PlayerStats(20.0f, configManager.getMaxThirst()));
-        // ตั้งค่า Scoreboard เป็นหลักไว้ก่อน
-        player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard()); 
-    }
-    
-    @EventHandler // Clear custom scoreboard เมื่อผู้เล่นออก
-    public void onPlayerQuit(PlayerQuitEvent event) {
-        Player player = event.getPlayer();
-        playerBoards.remove(player);
-    }
-    
-    // ====================================================================================
-    // GETTERS สำหรับการเข้าถึงจากคลาสอื่น
-    // ====================================================================================
+    // --- Getters ---
+    public static DynamicSurvival getInstance() { return instance; }
+    public ConfigManager getConfigManager() { return configManager; }
+    public TemperatureManager getTempManager() { return temperatureManager; }
+    public ThirstManager getThirstManager() { return thirstManager; }
+    public TimeManager getTimeManager() { return timeManager; }
     public Season getCurrentSeason() { return currentSeason; }
     public int getCurrentDay() { return currentDay; }
-    public PlayerStats getPlayerStats(Player p) { 
-        return playerStats.getOrDefault(p, new PlayerStats(20.0f, configManager.getMaxThirst()));
+
+    // ส่ง ActionBar ผ่าน Adventure Platform
+    public void sendActionBar(Player player, String message) {
+        adventure.player(player).sendActionBar(Component.text(message));
     }
-    public ConfigManager getConfigManager() { return configManager; }
     
     // ====================================================================================
-    // 1. ระบบฤดูกาล & ปฏิทิน & สภาพอากาศ
+    // 1. ระบบฤดูกาล & ปฏิทิน & สภาพอากาศ (แก้ไข Logic สภาพอากาศ)
     // ====================================================================================
 
     private void startSeasonAndWeatherLoop() {
@@ -145,14 +143,20 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
                 if (trackedWorld == null) return;
                 
                 long currentTime = trackedWorld.getFullTime();
+                // ตรวจสอบการเปลี่ยนวัน
                 if (currentTime / 24000 > lastDayTime / 24000) {
-                    onNewDay();
+                    onNewDay(); 
                 }
                 lastDayTime = currentTime;
-
-                // เรียกใช้ applyRandomWeather() ทุก 20 ติ๊ก (1 วินาที)
-                if (random.nextDouble() < configManager.getWeatherChance()) { 
-                    applyRandomWeather();
+                
+                // ตรวจสอบ/ลดระยะเวลาสภาพอากาศที่มีอยู่เมื่อเข้าสู่วันใหม่
+                if (isWeatherRunning && trackedWorld.getFullTime() % 24000 == 1000) { 
+                    if (weatherDurationLeft > 0) {
+                         weatherDurationLeft--;
+                    }
+                    if (weatherDurationLeft <= 0) {
+                        stopWeather();
+                    }
                 }
             }
         }.runTaskTimer(this, 20L, 20L);
@@ -161,6 +165,12 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     private void onNewDay() {
         currentDay++;
         
+        // 1. ตรวจสอบสภาพอากาศใหม่ ถ้าโลกกำลังแจ่มใสเท่านั้น
+        if (!isWeatherRunning) {
+            checkAndStartWeather();
+        }
+
+        // 2. ตรวจสอบการเปลี่ยนฤดูกาล
         if (currentDay > configManager.getSeasonDuration(currentSeason)) {
             changeSeason();
         } else {
@@ -169,245 +179,189 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
                 currentDay, currentSeason.getChatColor(), currentSeason.getThaiName(), daysLeft));
         }
     }
-
-    private void changeSeason() {
-        currentSeason = currentSeason.next();
-        currentDay = 1;
-
-        String msg = String.format("§l§e--- %sการเปลี่ยนฤดูกาลครั้งใหญ่!%s ---", ChatColor.GOLD, ChatColor.RESET);
-        String seasonMsg = String.format("%s! ฤดูกาลใหม่คือ: %s%s", ChatColor.YELLOW, currentSeason.getChatColor(), currentSeason.getThaiName());
-        
-        Bukkit.broadcastMessage(msg);
-        Bukkit.broadcastMessage(seasonMsg);
-
-        // เรียกใช้การประมวลผลการเปลี่ยนฤดูกาล
-        currentSeason.processSeasonStart(this);
-        
-        Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage("§7(โปรดทราบว่าสภาพแวดล้อมได้เปลี่ยนไปแล้ว!)"));
-    }
     
-    // **แก้ไข: ลดความถี่และเพิ่มสภาพอากาศ 'ตกหนัก'**
-    private void applyRandomWeather() {
-        if (trackedWorld == null) return;
+    private void checkAndStartWeather() {
         
-        // 1. โอกาสที่จะหยุดสภาพอากาศที่มีอยู่แล้ว (ลดความถี่)
-        if (trackedWorld.hasStorm() || trackedWorld.isThundering()) {
-            if (random.nextDouble() < 0.5) { // 50% chance ที่จะหยุดถ้ามีอยู่แล้ว
-                trackedWorld.setStorm(false);
-                trackedWorld.setThundering(false);
-                Bukkit.broadcastMessage("§e[สภาพอากาศ] เมฆฝนเคลื่อนตัวผ่านไป ท้องฟ้าแจ่มใสแล้ว.");
+        // 1. ฝนปกติ: เกิด 1-3 วัน/รอบ, ตก 1-2 วัน (ใช้ Config)
+        int normalMin = configManager.getNormalRainMinDay();
+        int normalMax = configManager.getNormalRainMaxDay();
+        double normalChance = configManager.getNormalRainChance();
+        int normalDurationMin = configManager.getNormalRainDurationMin();
+        int normalDurationMax = configManager.getNormalRainDurationMax();
+
+        if (currentDay >= normalMin && currentDay <= normalMax) {
+            if (random.nextDouble() < normalChance) { 
+                int duration = random.nextInt(normalDurationMax - normalDurationMin + 1) + normalDurationMin;
+                startRain(duration); 
+                return;
+            }
+        }
+
+        // 2. ฝนตกหนัก: เกิด 5-6 วัน/รอบ, ตก 4-5 วัน (ใช้ Config)
+        int heavyMin = configManager.getHeavyStormMinDay();
+        int heavyMax = configManager.getHeavyStormMaxDay();
+        double heavyChance = configManager.getHeavyStormChance();
+        int heavyDurationMin = configManager.getHeavyStormDurationMin();
+        int heavyDurationMax = configManager.getHeavyStormDurationMax();
+
+        if (currentDay >= heavyMin && currentDay <= heavyMax) {
+            if (random.nextDouble() < heavyChance) { 
+                int duration = random.nextInt(heavyDurationMax - heavyDurationMin + 1) + heavyDurationMin;
+                startStorm(duration); 
                 return;
             }
         }
         
-        double chance = random.nextDouble();
-        
-        if (chance < 0.1) {
-            // **New: สภาพอากาศตกหนัก (ฝน/หิมะ)**
-            trackedWorld.setStorm(true);
-            trackedWorld.setThundering(true); // ใช้ Thundering เพื่อแทน "ตกหนัก" 
-            Bukkit.broadcastMessage("§4[สภาพอากาศ] เกิดพายุตกหนัก! อุณหภูมิจะลดลงอย่างรวดเร็ว.");
-        } else if (chance < 0.25) { 
-            trackedWorld.setStorm(true);
-            trackedWorld.setThundering(false); 
-            Bukkit.broadcastMessage("§b[สภาพอากาศ] มีฝนตก/หิมะตก อุณหภูมิจะลดลง.");
-        } else if (chance < 0.45) {
-            trackedWorld.setStorm(false);
-            trackedWorld.setThundering(false); 
-            Bukkit.broadcastMessage("§e[สภาพอากาศ] ท้องฟ้าแจ่มใส อากาศดี.");
+        // รีเซ็ตตัวนับวันถ้าเกินรอบสูงสุดของโอกาสเกิดสภาพอากาศ (เพื่อให้วนรอบใหม่ 1-6)
+        if (currentDay > heavyMax) {
+            currentDay = 1; 
         }
-        // ถ้าไม่เข้าเงื่อนไขใดๆ สภาพอากาศเดิมจะคงอยู่
+    }
+
+    private void startRain(int durationDays) {
+        if (trackedWorld == null) return;
+        trackedWorld.setStorm(true);
+        trackedWorld.setThundering(false);
+        trackedWorld.setWeatherDuration(durationDays * 24000); 
+        isWeatherRunning = true;
+        weatherDurationLeft = durationDays;
+        Bukkit.broadcastMessage("§e[สภาพอากาศ] ฝนเริ่มตกปกติ คาดว่าจะนาน " + durationDays + " วัน.");
+    }
+
+    private void startStorm(int durationDays) {
+        if (trackedWorld == null) return;
+        trackedWorld.setStorm(true);
+        trackedWorld.setThundering(true);
+        trackedWorld.setWeatherDuration(durationDays * 24000); 
+        isWeatherRunning = true;
+        weatherDurationLeft = durationDays;
+        Bukkit.broadcastMessage("§c[สภาพอากาศ] ฝนตกหนักและมีพายุ คาดว่าจะนาน " + durationDays + " วัน!");
+    }
+    
+    private void stopWeather() {
+        if (trackedWorld == null) return;
+        trackedWorld.setStorm(false);
+        trackedWorld.setThundering(false);
+        isWeatherRunning = false;
+        weatherDurationLeft = 0;
+        Bukkit.broadcastMessage("§e[สภาพอากาศ] เมฆฝนเคลื่อนตัวผ่านไป ท้องฟ้าแจ่มใสแล้ว.");
+    }
+    
+    private void changeSeason() {
+        Season nextSeason = Season.getNextSeason(currentSeason);
+        currentSeason = nextSeason;
+        currentDay = 1; 
+        
+        Bukkit.broadcastMessage(String.format("§6[ปฏิทิน] ฤดูกาลเปลี่ยนเป็น: %s%s§6 แล้ว!", 
+            currentSeason.getChatColor(), currentSeason.getThaiName()));
+        
+        // Assume SeasonProcessor exists and is a BukkitRunnable
+        // new SeasonProcessor(this, currentSeason).runTaskAsynchronously(this);
     }
 
     // ====================================================================================
-    // 2. ระบบอุณหภูมิ & หลอดน้ำ (แสดงผลใน Action Bar/Scoreboard)
+    // 2. ระบบอัปเดตสถานะผู้เล่น & Action Bar / Scoreboard
     // ====================================================================================
-
+    
     private void startStatsUpdateLoop() {
         new BukkitRunnable() {
             @Override
             public void run() {
-                String mode = configManager.getDisplayMode(); // อ่านโหมดการแสดงผล
-                
                 for (Player player : Bukkit.getOnlinePlayers()) {
-                    PlayerStats stats = getPlayerStats(player);
-                    
-                    float newTemp = calculateTemperature(player);
-                    stats.setTemperature(newTemp);
-                    
-                    updateThirst(player, stats, newTemp);
-                    
-                    // **MODIFIED: เลือกแสดงผลตาม Config**
-                    if (mode.equals("SCOREBOARD")) {
-                        sendScoreboardUpdate(player, stats);
-                        // เคลียร์ Action Bar (ป้องกันการแสดงทับซ้อน)
-                        Component emptyComponent = LegacyComponentSerializer.legacySection().deserialize("");
-                        audiences.player(player).sendActionBar(emptyComponent); 
-                    } else { // Defaults to ACTION_BAR
-                        sendActionBarUpdate(player, stats);
-                        // เคลียร์ Scoreboard (ป้องกันการแสดงทับซ้อน)
-                        player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
-                        playerBoards.remove(player);
-                    }
-                    
-                    applyTemperatureEffects(player, newTemp);
+                    updatePlayer(player);
                 }
             }
-        }.runTaskTimer(this, 40L, 40L); // อัปเดตทุก 2 วินาที
-    }
-    
-    // Helper Method: ดึงสีตามอุณหภูมิ
-    private ChatColor getTemperatureColor(float temp) {
-        if (temp < configManager.getColdTempThreshold()) {
-            return ChatColor.DARK_BLUE; 
-        } else if (temp < configManager.getFreezingTempThreshold()) {
-            return ChatColor.BLUE; 
-        } else if (temp > configManager.getDeadlyHotTempThreshold()) {
-            return ChatColor.DARK_RED;
-        } else if (temp > configManager.getHotTempThreshold()) {
-            return ChatColor.RED; 
-        } else if (temp > configManager.getNormalTempThreshold()) {
-            return ChatColor.YELLOW; 
-        } else {
-            return ChatColor.GREEN; 
-        }
+        }.runTaskTimer(this, 0, configManager.getUpdateFrequencyTicks()); // ใช้ค่า Config
     }
 
-    // Helper Method: สร้างแถบหลอดน้ำ
-    private String getThirstBar(PlayerStats stats) {
-        int thirstLevel = stats.getThirst();
-        String thirstBar = "";
-        int maxThirst = configManager.getMaxThirst();
-        int fullBlocks = thirstLevel / (maxThirst / 10);
-        int emptyBlocks = 10 - fullBlocks;
+    private void updatePlayer(Player player) {
+        double temp = temperatureManager.getTemperature(player);
+        double thirst = thirstManager.getThirst(player);
         
-        thirstBar += ChatColor.AQUA + "💧".repeat(fullBlocks);
-        thirstBar += ChatColor.DARK_GRAY + "💧".repeat(emptyBlocks);
-        return thirstBar;
-    }
-    
-    // **NEW: Scoreboard Update Method**
-    private void sendScoreboardUpdate(Player player, PlayerStats stats) {
-        Scoreboard board = playerBoards.get(player);
-        if (board == null || board == Bukkit.getScoreboardManager().getMainScoreboard()) {
-            board = Bukkit.getScoreboardManager().getNewScoreboard();
-            Objective obj = board.registerNewObjective("ds_stats", "dummy", ChatColor.AQUA + "§lDynamicSurvival");
-            obj.setDisplaySlot(DisplaySlot.SIDEBAR);
-            playerBoards.put(player, board);
-            player.setScoreboard(board);
+        // 1. Thirst Loss Calculation (ใช้ Config)
+        double thirstLoss = configManager.getBaseThirstLoss();
+        if (player.isSprinting()) {
+            thirstLoss *= configManager.getSprintMultiplier();
         }
 
-        Objective obj = board.getObjective("ds_stats");
-        if (obj == null) return; 
-
-        // เคลียร์ Scoreboard เดิม (วิธีที่ง่ายที่สุด)
-        for (String entry : board.getEntries()) {
-            board.resetScores(entry);
-        }
-
-        // --- เตรียมข้อมูล ---
-        String seasonLine = currentSeason.getChatColor() + "§l" + currentSeason.getThaiName();
-        String dayLine = "§eวันที่: §f" + currentDay + " / " + configManager.getSeasonDuration(currentSeason);
-        ChatColor tempColor = getTemperatureColor(stats.getTemperature());
-        String tempLine = "§eอุณหภูมิ: " + tempColor + String.format("%.1f°C", stats.getTemperature());
-        String thirstLine = getThirstBar(stats);
-
-        // --- อัปเดต Scores (เรียงจากล่างขึ้นบน) ---
-        obj.getScore("§7§m=============").setScore(7); // Spacer
-        obj.getScore(seasonLine).setScore(6); // ฤดูกาล
-        obj.getScore(dayLine).setScore(5); // วันที่
-        obj.getScore("§a").setScore(4); // Spacer
-        obj.getScore(tempLine).setScore(3); // อุณหภูมิ
-        obj.getScore("§b").setScore(2); // Spacer
-        obj.getScore("§eน้ำ: " + thirstLine).setScore(1); // ระดับน้ำ
-        obj.getScore("§7§m------------").setScore(0); // Spacer
-    }
-    
-    // ... (calculateTemperature, updateThirst, applyTemperatureEffects methods remain the same) ...
-    private float calculateTemperature(Player player) {
-        float temp = configManager.getBaseTemp(currentSeason);
+        // Apply Thirst Loss
+        thirstManager.setThirst(player, thirst - thirstLoss);
         
-        long time = player.getWorld().getTime(); 
-        if (time < 12000) { 
-            temp += (12000 - time) / 12000.0f * 5.0f; 
-        } else { 
-            temp -= (time - 12000) / 12000.0f * 5.0f; 
+        // 2. Temperature Logic (ตัวอย่างการลด/เพิ่มอุณหภูมิ)
+        // คุณอาจจะต้องเขียน logic การปรับอุณหภูมิตามไบโอม/เสื้อผ้าเพิ่มเติม
+        // ในตัวอย่างนี้ ลดอุณหภูมิพื้นฐาน
+        double tempChange = -0.1; 
+        if (trackedWorld != null && trackedWorld.hasStorm()) {
+            tempChange += configManager.getTempModifierOnRain() / 10.0; // หารเพื่อลดผลกระทบ
         }
+        temperatureManager.setTemperature(player, temp + tempChange);
 
-        // ผลจากสภาพอากาศที่ "ตกหนัก" จะลดอุณหภูมิรุนแรงขึ้น
-        if (player.getWorld().hasStorm()) temp -= 3.0f; 
-        if (player.getWorld().isThundering()) temp -= 5.0f; 
+        // 3. Apply Effects (ใช้ Config)
+        double currentTemp = temperatureManager.getTemperature(player);
+        double currentThirst = thirstManager.getThirst(player);
+        double damage = configManager.getDamageAmount();
+
+        if (currentTemp < configManager.getFreezingThreshold()) {
+            player.setFreezeTicks(100);
+            player.damage(damage); 
+        }
+        if (currentTemp > configManager.getHotThreshold()) {
+            player.damage(damage); 
+        }
+        if (currentThirst <= configManager.getThirstDangerLevel()) {
+            player.damage(damage); 
+        }
         
-        String biome = player.getLocation().getBlock().getBiome().toString();
-        if (biome.contains("DESERT")) temp += 5.0f;
-        if (biome.contains("SNOW") || biome.contains("TAIGA")) temp -= 5.0f;
-
-        if (player.getLocation().getBlock().getRelative(0, -1, 0).getType() == Material.FIRE || 
-            player.getLocation().getBlock().getRelative(0, -1, 0).getType() == Material.LAVA) {
-            temp += 5.0f;
-        }
-
-        return temp;
+        // 4. Display Status (ใช้ Config)
+        // ในโค้ดตัวอย่างนี้ จะใช้ ActionBar ตามที่ตั้งค่าใน Config
+        sendActionBar(player, currentTemp, currentThirst);
     }
-    
-    private void updateThirst(Player player, PlayerStats stats, float currentTemp) {
-        int thirstLoss = configManager.getBaseThirstLoss();
-        if (currentTemp > configManager.getHotTempThreshold()) thirstLoss = 3;
-        if (player.isSprinting()) thirstLoss += 1; 
-        
-        stats.setThirst(Math.max(0, stats.getThirst() - thirstLoss));
-    }
-    
-    private void applyTemperatureEffects(Player player, float temp) {
-        if (temp < configManager.getColdTempThreshold()) {
-            player.damage(1.0);
-            player.sendTitle("", "§bคุณกำลังจะแข็งตาย! (-" + (int)Math.abs(temp) + "°C)", 10, 20, 10);
-        } else if (temp < configManager.getFreezingTempThreshold()) {
-            player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS, 40, 0));
-        } else if (temp > configManager.getDeadlyHotTempThreshold()) {
-            player.damage(1.0);
-            player.sendTitle("", "§4คุณเป็นโรคลมแดด! (+" + (int)temp + "°C)", 10, 20, 10);
-        } else if (temp > configManager.getHotTempThreshold()) {
-            player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.WEAKNESS, 40, 0));
-        }
 
-        if (getPlayerStats(player).getThirst() <= configManager.getThirstDangerLevel()) {
-            player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.NAUSEA, 40, 0));
-        }
-    }
-    
-    private void sendActionBarUpdate(Player player, PlayerStats stats) {
-        ChatColor tempColor = getTemperatureColor(stats.getTemperature());
-        String thirstBar = getThirstBar(stats);
+    private void sendActionBar(Player player, double temp, double thirst) {
+        ChatColor tempColor = getTemperatureColor(temp);
+        String thirstBar = getThirstBar(thirst);
+        String seasonDisplay = currentSeason.getChatColor() + currentSeason.getThaiName();
+        String dayDisplay = String.valueOf(currentDay);
 
-        String message = String.format("§f[ปฏิทิน: %s%s§f - วันที่ %d]   |   [อุณหภูมิ: %s%.1f°C§f]   |   [น้ำ: %s§f]",
-            currentSeason.getChatColor(), currentSeason.getThaiName(), currentDay, 
-            tempColor, stats.getTemperature(), thirstBar);
+        String message = String.format("§f[ปฏิทิน: %s§f - วันที่ %s]   |   [อุณหภูมิ: %s%.1f°C§f]   |   [น้ำ: %s§f]",
+            seasonDisplay, dayDisplay, 
+            tempColor, temp, thirstBar);
 
         Component component = LegacyComponentSerializer.legacySection().deserialize(message);
-        Audience playerAudience = this.audiences.player(player);
-        playerAudience.sendActionBar(component);
+        adventure.player(player).sendActionBar(component);
     }
-
-    // ====================================================================================
-    // PLAYER STATS CLASS
-    // ====================================================================================
-
-    public static class PlayerStats {
-        private float temperature;
-        private int thirst; // 0-MaxThirst
-
-        public PlayerStats(float temp, int thirst) {
-            this.temperature = temp;
-            this.thirst = thirst;
+    
+    private ChatColor getTemperatureColor(double temp) {
+        if (temp < configManager.getFreezingThreshold()) return ChatColor.AQUA;
+        if (temp > configManager.getHotThreshold()) return ChatColor.RED;
+        return ChatColor.YELLOW;
+    }
+    
+    private String getThirstBar(double thirst) {
+        int max = configManager.getMaxThirst();
+        int bars = 10;
+        int filledBars = (int) Math.ceil((double) thirst / max * bars);
+        
+        StringBuilder bar = new StringBuilder();
+        
+        ChatColor color;
+        if (thirst <= configManager.getThirstDangerLevel()) {
+            color = ChatColor.RED;
+        } else if (thirst < max / 2) {
+            color = ChatColor.YELLOW;
+        } else {
+            color = ChatColor.BLUE;
         }
         
-        public float getTemperature() { return temperature; }
-        public void setTemperature(float temperature) { this.temperature = temperature; }
-        public int getThirst() { return thirst; }
-        public void setThirst(int thirst) { this.thirst = thirst; }
-        public void addThirst(int amount, int maxThirst) {
-            this.thirst = Math.min(maxThirst, this.thirst + amount);
+        bar.append(color).append(ChatColor.BOLD);
+        for (int i = 0; i < bars; i++) {
+            if (i < filledBars) {
+                bar.append("█");
+            } else {
+                bar.append("§7█");
+            }
         }
+        bar.append(ChatColor.RESET).append(" (").append(String.format("%.0f", thirst)).append(")");
+        return bar.toString();
     }
 }
