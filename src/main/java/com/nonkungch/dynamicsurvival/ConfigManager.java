@@ -60,4 +60,13 @@ public class ConfigManager {
     public double getWeatherChance() {
         return config.getDouble("weather.chance-to-change", 0.2);
     }
+    
+    // **NEW: Display Mode Setting**
+    /**
+     * Gets the preferred display mode for player stats. 
+     * Valid values are "ACTION_BAR" or "SCOREBOARD". Defaults to "ACTION_BAR".
+     */
+    public String getDisplayMode() {
+        return config.getString("display.mode", "ACTION_BAR").toUpperCase();
+    }
 }

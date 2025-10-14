@@ -22,16 +22,32 @@ public class CalendarGUI implements Listener {
         Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
+    // เมธอด: ดึง Material ของกระจกตามฤดูกาล (ตามที่คุณต้องการ)
+    private static Material getGlassMaterialForSeason(Season season) {
+        switch (season) {
+            case SPRING:
+                return Material.LIME_STAINED_GLASS_PANE; // ใบไม้ผลิ = เขียว
+            case SUMMER:
+                return Material.RED_STAINED_GLASS_PANE; // ฤดูร้อน = แดง
+            case AUTUMN:
+                return Material.ORANGE_STAINED_GLASS_PANE; // ใบไม้ร่วง = ส้ม
+            case WINTER:
+                return Material.LIGHT_BLUE_STAINED_GLASS_PANE; // ฤดูหนาว = ฟ้า
+            default:
+                return Material.GRAY_STAINED_GLASS_PANE;
+        }
+    }
+    
     public static void openCalendar(Player player, DynamicSurvival plugin) {
         Inventory gui = Bukkit.createInventory(player, 27, GUI_TITLE);
 
         // 1. ไอเท็มข้อมูลฤดูกาลปัจจุบัน
         Season currentSeason = plugin.getCurrentSeason();
-        ItemStack seasonInfo = createItem(Material.TOTEM_OF_UNDYING, 
+        ItemStack seasonInfo = createItem(getGlassMaterialForSeason(currentSeason), 
             currentSeason.getChatColor() + currentSeason.getThaiName(),
             Arrays.asList(
                 "§7--- ฤดูกาลปัจจุบัน ---",
-                "§eวันที่: §f" + plugin.getCurrentDay(),
+                "§eวันที่: §f" + plugin.getCurrentDay() + " / " + plugin.getConfigManager().getSeasonDuration(currentSeason), // แสดงวัน/วันรวม
                 "§eคงเหลือ: §f" + (plugin.getConfigManager().getSeasonDuration(currentSeason) - plugin.getCurrentDay()) + " วัน",
                 " ",
                 "§7อุณหภูมิพื้นฐาน: §f" + plugin.getConfigManager().getBaseTemp(currentSeason) + "°C"
@@ -52,11 +68,11 @@ public class CalendarGUI implements Listener {
         playerHead.setItemMeta(meta);
         gui.setItem(4, playerHead);
 
-        // 3. ไอเท็มฤดูกาลอื่น
+        // 3. ไอเท็มฤดูกาลอื่น (ใช้กระจกสีที่เหมาะสม)
         int slot = 18;
         for (Season season : Season.values()) {
             if (season != currentSeason) {
-                gui.setItem(slot++, createItem(Material.YELLOW_STAINED_GLASS_PANE, 
+                gui.setItem(slot++, createItem(getGlassMaterialForSeason(season), 
                     season.getChatColor() + season.getThaiName(),
                     Arrays.asList(
                         "§7--- ข้อมูล ---",
