@@ -10,25 +10,36 @@ public class ConfigManager {
 
     public ConfigManager(DynamicSurvival plugin) {
         this.plugin = plugin;
-        plugin.saveDefaultConfig(); 
+        plugin.saveDefaultConfig();
     }
 
     public void loadConfig() {
         plugin.reloadConfig();
         this.config = plugin.getConfig();
     }
-    
+
+    // --- Special Effects: Leaf Armor ---
     public int getLeafArmorRequiredPieces() {
         return config.getInt("special-effects.leaf-armor-set-bonus.required-pieces", 3);
     }
     public float getLeafArmorHeatReduction() {
         return (float) config.getDouble("special-effects.leaf-armor-set-bonus.nether-heat-reduction", 60.0);
     }
+
+    // --- Special Effects: Leather Armor ---
+    public int getLeatherArmorRequiredPieces() {
+        return config.getInt("special-effects.leather-armor-set-bonus.required-pieces", 3);
+    }
+    public float getLeatherArmorWarmthBonus() {
+        return (float) config.getDouble("special-effects.leather-armor-set-bonus.warmth-bonus", 15.0);
+    }
+
+    // --- Special Effects: Nether & Environment ---
     public float getNetherTempIncrease() {
         return (float) config.getDouble("special-effects.nether.temperature-increase", 60.0);
     }
     public float getNetherThirstMultiplier() {
-        return (float) config.getDouble("special-effects.nether.thirst-loss-multiplier", 2.0);
+        return (float) config.getDouble("special-effects.nether.thirst-loss-multiplier", 2.5);
     }
     public float getFireTempIncrease() {
         return (float) config.getDouble("special-effects.environment.fire-temp-increase", 10.0);
@@ -36,23 +47,42 @@ public class ConfigManager {
     public float getWaterSnowTempDecrease() {
         return (float) config.getDouble("special-effects.environment.water-snow-temp-decrease", -10.0);
     }
+    public float getPowderSnowTempDecrease() {
+        return (float) config.getDouble("special-effects.environment.powder-snow-temp-decrease", -20.0);
+    }
+
+    // --- Water Pouch Settings ---
+    public int getPouchCapacity(int tier) {
+        return config.getInt("water-pouch.tiers." + tier + ".capacity", 6);
+    }
+    public int getPouchRestoreAmount() {
+        return config.getInt("water-pouch.thirst-restore-amount", 30);
+    }
+
+    // --- Scoreboard Settings ---
     public String getScoreboardTitle() {
         return config.getString("scoreboard.title", "§b§lDynamicSurvival");
     }
     public List<String> getScoreboardLines() {
         return config.getStringList("scoreboard.lines");
     }
+
+    // --- Weather Settings ---
     public int getWeatherChangeCooldownMinutes() {
         return config.getInt("weather.change-cooldown-minutes", 15);
     }
+
+    // --- Season Duration ---
     public int getSeasonDuration(Season season) {
         return config.getInt("season-duration." + season.toString().toLowerCase(), 20);
     }
+
+    // --- Thirst Settings ---
     public int getMaxThirst() {
         return config.getInt("thirst.max-level", 100);
     }
-    public int getBaseThirstLoss() {
-        return config.getInt("thirst.base-loss-per-update", 1);
+    public double getBaseThirstLoss() {
+        return config.getDouble("thirst.base-loss-per-update", 0.4);
     }
     public int getWaterBottleRestore() {
         return config.getInt("thirst.water-bottle-restore", 30);
@@ -60,6 +90,8 @@ public class ConfigManager {
      public int getThirstDangerLevel() {
         return config.getInt("thirst.danger-level", 10);
     }
+
+    // --- Temperature Settings ---
     public float getBaseTemp(Season season) {
         return (float) config.getDouble("temperature.base-temp." + season.toString().toLowerCase(), 25.0);
     }

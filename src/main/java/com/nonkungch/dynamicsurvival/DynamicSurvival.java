@@ -30,10 +30,10 @@ import java.io.IOException;
 import java.util.*;
 
 enum Season {
-    SPRING("ฤดูใบไม้ผลิ", "§a§l"), 
-    SUMMER("ฤดูร้อน", "§6§l"),  
-    AUTUMN("ฤดูใบไม้ร่วง", "§c§l"), 
-    WINTER("ฤดูหนาว", "§b§l");  
+    SPRING("ฤดูใบไม้ผลิ", "§a§l"),
+    SUMMER("ฤดูร้อน", "§6§l"),
+    AUTUMN("ฤดูใบไม้ร่วง", "§c§l"),
+    WINTER("ฤดูหนาว", "§b§l");
 
     private final String thaiName;
     private final String chatColor;
@@ -56,35 +56,42 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     public final Random random = new Random();
     private World trackedWorld;
     private ConfigManager configManager;
-    
+
     private File dataFile;
     private FileConfiguration dataConfig;
 
     @Override
     public void onEnable() {
         getLogger().info("DynamicSurvival Plugin (v" + getDescription().getVersion() + ") is enabled!");
-        
+
         this.configManager = new ConfigManager(this);
         this.configManager.loadConfig();
-        
+
         setupDataFile();
         loadData();
-        
+
         if (!Bukkit.getWorlds().isEmpty()) {
             trackedWorld = Bukkit.getWorlds().get(0);
             lastDayTime = trackedWorld.getFullTime();
         } else {
             getLogger().warning("No world found! Season system might not work correctly.");
         }
-        
+
+        // Register Events
         Bukkit.getPluginManager().registerEvents(this, this);
         Bukkit.getPluginManager().registerEvents(new ThirstListener(this), this);
+
+        // Register Managers and Systems
+        PouchManager pouchManager = new PouchManager(this);
+        RecipeManager recipeManager = new RecipeManager(this, pouchManager);
+        recipeManager.registerRecipes();
+        Bukkit.getPluginManager().registerEvents(new PouchListener(this, pouchManager), this);
+
+        // Register Commands
         this.getCommand("ds").setExecutor(new DSCommand(this));
         new CalendarGUI(this);
-        
-        RecipeManager recipeManager = new RecipeManager(this);
-        recipeManager.registerRecipes();
-        
+
+        // Start Core Loops
         startSeasonAndWeatherLoop();
         startStatsUpdateLoop();
     }
@@ -109,7 +116,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         playerBoards.remove(player);
         player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
     }
-    
+
     @EventHandler
     public void onPlayerRespawn(PlayerRespawnEvent event) {
         Player player = event.getPlayer();
@@ -247,7 +254,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         line = line.replace("%season_duration%", String.valueOf(configManager.getSeasonDuration(currentSeason)));
         line = line.replace("%days_left%", String.valueOf(daysLeft));
         line = line.replace("%temperature%", getTemperatureColor(stats.getTemperature()) + String.format("%.1f°C", stats.getTemperature()));
-        line = line.replace("%thirst_bar%", getThirstBar(stats));
         line = line.replace("%thirst_value%", String.valueOf(stats.getThirst()));
         line = line.replace("%thirst_max%", String.valueOf(configManager.getMaxThirst()));
         return line;
@@ -256,6 +262,21 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     private float calculateTemperature(Player player) {
         float temp = configManager.getBaseTemp(currentSeason);
 
+        // --- Leather Armor Set Bonus (Warmth) ---
+        int leatherPieces = 0;
+        for (ItemStack armor : player.getInventory().getArmorContents()) {
+            if (armor != null) {
+                Material type = armor.getType();
+                if (type == Material.LEATHER_HELMET || type == Material.LEATHER_CHESTPLATE || type == Material.LEATHER_LEGGINGS || type == Material.LEATHER_BOOTS) {
+                    leatherPieces++;
+                }
+            }
+        }
+        if (leatherPieces >= configManager.getLeatherArmorRequiredPieces()) {
+            temp += configManager.getLeatherArmorWarmthBonus();
+        }
+
+        // --- Nether and Leaf Armor Set Bonus ---
         if (player.getWorld().getEnvironment() == World.Environment.NETHER) {
             float netherHeat = configManager.getNetherTempIncrease();
             int leafArmorPieces = 0;
@@ -273,21 +294,28 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             }
             temp += Math.max(0, netherHeat);
         }
+        
+        // --- Environmental Effects ---
+        Block playerBlock = player.getLocation().getBlock();
+        if (playerBlock.getType() == Material.POWDERED_SNOW) {
+            temp += configManager.getPowderSnowTempDecrease();
+        } else {
+            boolean foundEnvEffect = false;
+            for (int x = -2; x <= 2; x++) { for (int y = -1; y <= 2; y++) { for (int z = -2; z <= 2; z++) {
+                Block block = playerBlock.getRelative(x, y, z);
+                Block blockBelow = playerBlock.getRelative(0, -1, 0);
+                if (block.getType() == Material.WATER || blockBelow.getType() == Material.SNOW_BLOCK || blockBelow.getType() == Material.SNOW) {
+                    temp += configManager.getWaterSnowTempDecrease();
+                    foundEnvEffect = true; break;
+                }
+                if (block.getType() == Material.FIRE || block.getType() == Material.CAMPFIRE || block.getType() == Material.SOUL_CAMPFIRE) {
+                    temp += configManager.getFireTempIncrease();
+                    foundEnvEffect = true; break;
+                }
+            } if (foundEnvEffect) break; } if (foundEnvEffect) break; }
+        }
 
-        boolean foundEnvEffect = false;
-        for (int x = -2; x <= 2; x++) { for (int y = -1; y <= 2; y++) { for (int z = -2; z <= 2; z++) {
-            Block block = player.getLocation().getBlock().getRelative(x, y, z);
-            Block blockBelow = player.getLocation().getBlock().getRelative(0, -1, 0);
-            if (block.getType() == Material.WATER || blockBelow.getType() == Material.SNOW_BLOCK || blockBelow.getType() == Material.SNOW) {
-                temp += configManager.getWaterSnowTempDecrease();
-                foundEnvEffect = true; break;
-            }
-            if (block.getType() == Material.FIRE || block.getType() == Material.CAMPFIRE || block.getType() == Material.SOUL_CAMPFIRE) {
-                temp += configManager.getFireTempIncrease();
-                foundEnvEffect = true; break;
-            }
-        } if (foundEnvEffect) break; } if (foundEnvEffect) break; }
-
+        // --- Other Factors ---
         long time = player.getWorld().getTime();
         if (time < 12000) temp += (12000 - time) / 12000.0f * 5.0f;
         else temp -= (time - 12000) / 12000.0f * 5.0f;
@@ -304,7 +332,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     }
 
     private void updateThirst(Player player, PlayerStats stats) {
-        float thirstLoss = configManager.getBaseThirstLoss();
+        double thirstLoss = configManager.getBaseThirstLoss();
         if (stats.getTemperature() > configManager.getHotTempThreshold()) thirstLoss *= 2;
         if (player.isSprinting()) thirstLoss += 1;
         if (player.getWorld().getEnvironment() == World.Environment.NETHER) {
@@ -362,14 +390,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         if (temp > configManager.getHotTempThreshold()) return ChatColor.RED;
         if (temp > configManager.getNormalTempThreshold()) return ChatColor.YELLOW;
         return ChatColor.GREEN;
-    }
-
-    private String getThirstBar(PlayerStats stats) {
-        int thirstLevel = stats.getThirst();
-        int maxThirst = configManager.getMaxThirst();
-        int fullBlocks = (maxThirst > 0) ? (thirstLevel * 10 / maxThirst) : 0;
-        int emptyBlocks = 10 - fullBlocks;
-        return "§b" + "💧".repeat(fullBlocks) + "§8" + "💧".repeat(emptyBlocks);
     }
 
     public static class PlayerStats {
