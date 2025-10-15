@@ -16,10 +16,13 @@ import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.Material;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 
-// (Enum Season ไม่มีการเปลี่ยนแปลง)
 enum Season {
     SPRING("ฤดูใบไม้ผลิ", "§a§l"), 
     SUMMER("ฤดูร้อน", "§6§l"),  
@@ -28,22 +31,11 @@ enum Season {
 
     private final String thaiName;
     private final String chatColor;
-
-    Season(String thaiName, String chatColor) {
-        this.thaiName = thaiName;
-        this.chatColor = chatColor;
-    }
-
-    public Season next() {
-        return values()[(ordinal() + 1) % values().length];
-    }
-    
+    Season(String thaiName, String chatColor) { this.thaiName = thaiName; this.chatColor = chatColor; }
+    public Season next() { return values()[(ordinal() + 1) % values().length]; }
     public String getThaiName() { return thaiName; }
     public String getChatColor() { return chatColor; }
-    
-    public void processSeasonStart(DynamicSurvival plugin) {
-        new SeasonProcessor(plugin, this).runTask(plugin);
-    }
+    public void processSeasonStart(DynamicSurvival plugin) { new SeasonProcessor(plugin, this).runTask(plugin); }
 }
 
 public class DynamicSurvival extends JavaPlugin implements Listener {
@@ -58,6 +50,9 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     public final Random random = new Random();
     private World trackedWorld;
     private ConfigManager configManager;
+    
+    private File dataFile;
+    private FileConfiguration dataConfig;
 
     @Override
     public void onEnable() {
@@ -66,8 +61,12 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         this.configManager = new ConfigManager(this);
         this.configManager.loadConfig();
         
+        setupDataFile();
+        loadData();
+        
         if (!Bukkit.getWorlds().isEmpty()) {
             trackedWorld = Bukkit.getWorlds().get(0);
+            lastDayTime = trackedWorld.getFullTime();
         } else {
             getLogger().warning("No world found! Season system might not work correctly.");
         }
@@ -83,6 +82,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
+        saveData();
         getLogger().info("DynamicSurvival Plugin is disabled!");
         Bukkit.getScheduler().cancelTasks(this);
     }
@@ -113,13 +113,11 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             @Override
             public void run() {
                 if (trackedWorld == null) return;
-                
                 long currentTime = trackedWorld.getFullTime();
                 if (currentTime / 24000 > lastDayTime / 24000) {
                     onNewDay();
                 }
                 lastDayTime = currentTime;
-                
                 if (currentTime >= nextWeatherChangeTick) {
                     applyRandomWeather();
                     long cooldownTicks = (long) configManager.getWeatherChangeCooldownMinutes() * 60 * 20;
@@ -138,6 +136,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             Bukkit.broadcastMessage(String.format("§e[ปฏิทิน] วันที่ %d ใน %s%s§e (%d วันที่เหลือ)",
                 currentDay, currentSeason.getChatColor(), currentSeason.getThaiName(), daysLeft));
         }
+        saveData();
     }
 
     private void changeSeason() {
@@ -149,6 +148,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         Bukkit.broadcastMessage(seasonMsg);
         currentSeason.processSeasonStart(this);
         Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage("§7(โปรดทราบว่าสภาพแวดล้อมได้เปลี่ยนไปแล้ว!)"));
+        saveData();
     }
 
     private void applyRandomWeather() {
@@ -181,11 +181,9 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
                     PlayerStats stats = getPlayerStats(player);
                     float newTemp = calculateTemperature(player);
                     stats.setTemperature(newTemp);
-                    updateThirst(player, stats, newTemp);
+                    updateThirst(player, stats);
                     sendScoreboardUpdate(player, stats);
-                    
-                    // **แก้ไข: ส่งค่า stats เข้าไปในเมธอด**
-                    applyTemperatureEffects(player, stats, newTemp);
+                    applyStatusEffects(player, stats);
                 }
             }
         }.runTaskTimer(this, 40L, 40L);
@@ -197,35 +195,26 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             p.setScoreboard(newBoard);
             return newBoard;
         });
-
         Objective obj = board.getObjective("ds_stats");
         if (obj == null) {
             obj = board.registerNewObjective("ds_stats", "dummy", ChatColor.translateAlternateColorCodes('&', configManager.getScoreboardTitle()));
             obj.setDisplaySlot(DisplaySlot.SIDEBAR);
         }
-
         obj.setDisplayName(ChatColor.translateAlternateColorCodes('&', configManager.getScoreboardTitle()));
-        
-        for (String entry : board.getEntries()) {
-            board.resetScores(entry);
-        }
-
+        board.getEntries().forEach(board::resetScores);
         List<String> lines = configManager.getScoreboardLines();
         int score = lines.size();
         for (String line : lines) {
             String processedLine = replacePlaceholders(line, player, stats);
-            
             if (processedLine.isEmpty()) {
-                processedLine = "§" + Integer.toHexString(score) + "§r"; 
+                processedLine = "§" + Integer.toHexString(score) + "§r";
             }
-            
             obj.getScore(processedLine).setScore(score--);
         }
     }
 
     private String replacePlaceholders(String line, Player player, PlayerStats stats) {
         int daysLeft = configManager.getSeasonDuration(currentSeason) - currentDay;
-        
         line = ChatColor.translateAlternateColorCodes('&', line);
         line = line.replace("%player_name%", player.getName());
         line = line.replace("%season_name%", currentSeason.getThaiName());
@@ -237,59 +226,81 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         line = line.replace("%thirst_bar%", getThirstBar(stats));
         line = line.replace("%thirst_value%", String.valueOf(stats.getThirst()));
         line = line.replace("%thirst_max%", String.valueOf(configManager.getMaxThirst()));
-        
         return line;
     }
-    
+
     private float calculateTemperature(Player player) {
         float temp = configManager.getBaseTemp(currentSeason);
+        if (player.getWorld().getEnvironment() == World.Environment.NETHER) {
+            temp += configManager.getNetherTempIncrease();
+        }
         long time = player.getWorld().getTime();
         if (time < 12000) temp += (12000 - time) / 12000.0f * 5.0f;
         else temp -= (time - 12000) / 12000.0f * 5.0f;
         if (player.getWorld().hasStorm()) temp -= 3.0f;
         if (player.getWorld().isThundering()) temp -= 5.0f;
-        
         String biome = player.getLocation().getBlock().getBiome().toString();
         if (biome.contains("DESERT")) temp += 5.0f;
         if (biome.contains("SNOW") || biome.contains("TAIGA")) temp -= 5.0f;
-
-        if (player.getLocation().getBlock().getRelative(0, -1, 0).getType() == Material.FIRE || 
+        if (player.getLocation().getBlock().getRelative(0, -1, 0).getType() == Material.FIRE ||
             player.getLocation().getBlock().getRelative(0, -1, 0).getType() == Material.LAVA) {
             temp += 5.0f;
         }
-
         return temp;
     }
-    
-    private void updateThirst(Player player, PlayerStats stats, float currentTemp) {
-        int thirstLoss = configManager.getBaseThirstLoss();
-        if (currentTemp > configManager.getHotTempThreshold()) thirstLoss *= 2;
+
+    private void updateThirst(Player player, PlayerStats stats) {
+        float thirstLoss = configManager.getBaseThirstLoss();
+        if (stats.getTemperature() > configManager.getHotTempThreshold()) thirstLoss *= 2;
         if (player.isSprinting()) thirstLoss += 1;
-        stats.setThirst(Math.max(0, stats.getThirst() - thirstLoss));
+        if (player.getWorld().getEnvironment() == World.Environment.NETHER) {
+            thirstLoss *= configManager.getNetherThirstMultiplier();
+        }
+        stats.setThirst(Math.max(0, (int) (stats.getThirst() - thirstLoss)));
     }
 
-    /**
-     * **แก้ไข: เพิ่มพารามิเตอร์ PlayerStats stats**
-     */
-    private void applyTemperatureEffects(Player player, PlayerStats stats, float temp) {
+    private void applyStatusEffects(Player player, PlayerStats stats) {
+        float temp = stats.getTemperature();
         if (temp < configManager.getColdTempThreshold()) {
             player.damage(1.0);
             player.sendTitle("", "§bคุณกำลังจะแข็งตาย!", 10, 40, 10);
         } else if (temp < configManager.getFreezingTempThreshold()) {
-             player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 0));
+            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 0, true, false));
         } else if (temp > configManager.getDeadlyHotTempThreshold()) {
             player.damage(1.0);
             player.sendTitle("", "§cคุณกำลังจะถูกเผา!", 10, 40, 10);
         } else if (temp > configManager.getHotTempThreshold()) {
-             player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 60, 0));
+            player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 60, 0, true, false));
         }
-
-        // **แก้ไข: ตอนนี้เมธอดรู้จักตัวแปร stats แล้ว**
-        if (stats.getThirst() <= configManager.getThirstDangerLevel()) {
-             player.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 60, 0));
+        if (stats.getThirst() <= 0) {
+            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 60, 1, true, false));
+            player.addPotionEffect(new PotionEffect(PotionEffectType.CONFUSION, 200, 0, true, false));
         }
     }
-    
+
+    private void setupDataFile() {
+        dataFile = new File(getDataFolder(), "data.yml");
+        if (!dataFile.exists()) {
+            try { dataFile.createNewFile(); } catch (IOException e) { getLogger().severe("Could not create data.yml!"); }
+        }
+        dataConfig = YamlConfiguration.loadConfiguration(dataFile);
+    }
+
+    private void loadData() {
+        if (dataConfig.contains("season")) {
+            this.currentSeason = Season.valueOf(dataConfig.getString("season", "SPRING"));
+        }
+        if (dataConfig.contains("day")) {
+            this.currentDay = dataConfig.getInt("day", 1);
+        }
+    }
+
+    private void saveData() {
+        dataConfig.set("season", currentSeason.name());
+        dataConfig.set("day", currentDay);
+        try { dataConfig.save(dataFile); } catch (IOException e) { getLogger().severe("Could not save data to data.yml!"); }
+    }
+
     private ChatColor getTemperatureColor(float temp) {
         if (temp < configManager.getColdTempThreshold()) return ChatColor.DARK_BLUE;
         if (temp < configManager.getFreezingTempThreshold()) return ChatColor.BLUE;
@@ -306,7 +317,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         int emptyBlocks = 10 - fullBlocks;
         return "§b" + "💧".repeat(fullBlocks) + "§8" + "💧".repeat(emptyBlocks);
     }
-    
+
     public static class PlayerStats {
         private float temperature;
         private int thirst;

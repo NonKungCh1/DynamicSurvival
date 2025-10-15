@@ -18,7 +18,9 @@ public class DSCommand implements CommandExecutor {
         
         if (args.length == 0) {
             sender.sendMessage("§e--- DynamicSurvival (v" + plugin.getDescription().getVersion() + ") ---");
+            if (sender.hasPermission("ds.calendar")) {
             sender.sendMessage("§e/ds calendar §7- เปิดปฏิทิน GUI");
+            }
             if (sender.hasPermission("ds.admin")) {
                 sender.sendMessage("§e/ds reload §7- โหลด Config ใหม่");
             }

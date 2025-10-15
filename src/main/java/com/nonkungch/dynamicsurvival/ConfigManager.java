@@ -18,6 +18,14 @@ public class ConfigManager {
         this.config = plugin.getConfig();
     }
     
+    public float getNetherTempIncrease() {
+        return (float) config.getDouble("special-effects.nether.temperature-increase", 50.0);
+    }
+
+    public float getNetherThirstMultiplier() {
+        return (float) config.getDouble("special-effects.nether.thirst-loss-multiplier", 2.0);
+    }
+    
     public String getScoreboardTitle() {
         return config.getString("scoreboard.title", "§b§lDynamicSurvival");
     }
@@ -43,7 +51,7 @@ public class ConfigManager {
     public int getWaterBottleRestore() {
         return config.getInt("thirst.water-bottle-restore", 30);
     }
-    public int getThirstDangerLevel() {
+     public int getThirstDangerLevel() {
         return config.getInt("thirst.danger-level", 10);
     }
     
