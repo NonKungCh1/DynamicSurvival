@@ -16,7 +16,7 @@ thirst:
   max-level: 100
   base-loss-per-update: 1
   water-bottle-restore: 30
-  danger-level: 10 # ระดับที่เริ่มมี effect (Nausea) จากเวอร์ชันก่อน (ยังคงใช้ได้)
+  danger-level: 10
 
 # ====================================
 # การตั้งค่าอุณหภูมิ (Temperature)
@@ -38,7 +38,6 @@ temperature:
 # การตั้งค่าสภาพอากาศ (Weather)
 # ====================================
 weather:
-  # ระยะเวลาขั้นต่ำ (นาที) ที่สภาพอากาศจะคงที่ ก่อนจะมีการสุ่มเปลี่ยนแปลงอีกครั้ง
   change-cooldown-minutes: 15
 
 # ====================================
@@ -46,10 +45,19 @@ weather:
 # ====================================
 special-effects:
   nether:
-    # อุณหภูมิที่จะถูกบวกเพิ่มเข้าไปเมื่ออยู่ใน Nether
-    temperature-increase: 50.0
-    # ตัวคูณการลดลงของหลอดน้ำ (2.0 = เร็วขึ้น 2 เท่า)
+    temperature-increase: 60.0
     thirst-loss-multiplier: 2.0
+  
+  environment:
+    fire-temp-increase: 10.0
+    water-snow-temp-decrease: -10.0
+
+  # --- ระบบโบนัสเซ็ตชุดใบไม้ ---
+  leaf-armor-set-bonus:
+    # จำนวนชิ้นที่ต้องใส่เพื่อรับโบนัสกันความร้อน
+    required-pieces: 3
+    # ปริมาณอุณหภูมิที่จะลดลงเมื่อโบนัสทำงาน
+    nether-heat-reduction: 60.0
 
 # ====================================
 # การตั้งค่า Scoreboard
@@ -62,7 +70,8 @@ scoreboard:
     - "วันที่: &e%current_day% / %season_duration%"
     - ""
     - "อุณหภูมิ: %temperature%"
-    - "ระดับน้ำ: %thirst_bar%"
+    - "ระดับน้ำ:"
+    -  "%thirst_bar%"
     - ""
     - "ผู้เล่น: &a%player_name%"
     - "&7&m------------------"
