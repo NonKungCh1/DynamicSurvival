@@ -73,8 +73,9 @@ scoreboard:
     - "วันที่: &e%current_day% / %season_duration%"
     - ""
     - "อุณหภูมิ: %temperature%"
-    - "ระดับน้ำ:"
-    -  "%thirst_bar%"
+    # --- แก้ไขตรงนี้ ---
+    - "ระดับน้ำ: &b%thirst_value%/%thirst_max%" 
+    # ------------------
     - ""
     - "ผู้เล่น: &a%player_name%"
     - "&7&m------------------"
