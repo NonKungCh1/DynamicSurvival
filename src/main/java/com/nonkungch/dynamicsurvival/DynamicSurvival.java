@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+// (Enum Season ไม่มีการเปลี่ยนแปลง)
 enum Season {
     SPRING("ฤดูใบไม้ผลิ", "§a§l"), 
     SUMMER("ฤดูร้อน", "§6§l"),  
@@ -272,9 +273,11 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         } else if (temp > configManager.getHotTempThreshold()) {
             player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 60, 0, true, false));
         }
+
         if (stats.getThirst() <= 0) {
-            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 60, 1, true, false));
-            player.addPotionEffect(new PotionEffect(PotionEffectType.CONFUSION, 200, 0, true, false));
+            // **แก้ไข: ใช้ชื่อที่ถูกต้อง SLOWNESS และ NAUSEA**
+            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 1, true, false)); // เดินช้า
+            player.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 200, 0, true, false));   // มึนหัว
         }
     }
 
