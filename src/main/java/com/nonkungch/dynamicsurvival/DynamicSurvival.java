@@ -183,7 +183,9 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
                     stats.setTemperature(newTemp);
                     updateThirst(player, stats, newTemp);
                     sendScoreboardUpdate(player, stats);
-                    applyTemperatureEffects(player, newTemp);
+                    
+                    // **แก้ไข: ส่งค่า stats เข้าไปในเมธอด**
+                    applyTemperatureEffects(player, stats, newTemp);
                 }
             }
         }.runTaskTimer(this, 40L, 40L);
@@ -266,7 +268,10 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         stats.setThirst(Math.max(0, stats.getThirst() - thirstLoss));
     }
 
-    private void applyTemperatureEffects(Player player, float temp) {
+    /**
+     * **แก้ไข: เพิ่มพารามิเตอร์ PlayerStats stats**
+     */
+    private void applyTemperatureEffects(Player player, PlayerStats stats, float temp) {
         if (temp < configManager.getColdTempThreshold()) {
             player.damage(1.0);
             player.sendTitle("", "§bคุณกำลังจะแข็งตาย!", 10, 40, 10);
@@ -279,6 +284,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
              player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 60, 0));
         }
 
+        // **แก้ไข: ตอนนี้เมธอดรู้จักตัวแปร stats แล้ว**
         if (stats.getThirst() <= configManager.getThirstDangerLevel()) {
              player.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 60, 0));
         }
