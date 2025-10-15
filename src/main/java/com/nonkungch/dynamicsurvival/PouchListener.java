@@ -1,4 +1,6 @@
-// PouchListener.java (โค้ดที่แก้ไขแล้ว)
+// นี่คือโค้ดที่ถูกต้องและสมบูรณ์สำหรับ PouchListener.java
+
+package com.nonkungch.dynamicsurvival;
 
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -36,7 +38,6 @@ public class PouchListener implements Listener {
         
         // --- ส่วนของการดื่มน้ำ (เหมือนเดิม) ---
         if (action == Action.RIGHT_CLICK_AIR) {
-            // ... โค้ดส่วนนี้ไม่มีการเปลี่ยนแปลง ...
             event.setCancelled(true);
             ItemMeta meta = item.getItemMeta();
             int current = meta.getPersistentDataContainer().getOrDefault(pouchManager.CURRENT_WATER_KEY, PersistentDataType.INTEGER, 0);
@@ -56,12 +57,12 @@ public class PouchListener implements Listener {
             }
         }
         
-        // --- ส่วนของการเติมน้ำ (แก้ไข Logic ตรงนี้) ---
+        // --- ส่วนของการเติมน้ำ (เพิ่มทีละ 1) ---
         if (action == Action.RIGHT_CLICK_BLOCK) {
             Block clickedBlock = event.getClickedBlock();
             if (clickedBlock == null) return;
 
-            // ตรวจสอบแหล่งน้ำ (เหมือนเดิม)
+            // ตรวจสอบแหล่งน้ำ
             Material blockType = clickedBlock.getType();
             BlockData blockData = clickedBlock.getBlockData();
             boolean isWaterSource = false;
@@ -79,16 +80,12 @@ public class PouchListener implements Listener {
                 int max = meta.getPersistentDataContainer().getOrDefault(pouchManager.MAX_WATER_KEY, PersistentDataType.INTEGER, 0);
 
                 if (current < max) {
-                    // --- ส่วนที่แก้ไข: เพิ่มน้ำทีละ 1 ---
                     int newCurrent = current + 1;
                     meta.getPersistentDataContainer().set(pouchManager.CURRENT_WATER_KEY, PersistentDataType.INTEGER, newCurrent);
                     item.setItemMeta(meta);
                     pouchManager.updatePouchLore(item);
 
-                    // --- แก้ไข Sound และ ข้อความ ---
-                    // เปลี่ยนเสียงให้เหมือนการตักน้ำใส่ขวด จะได้ไม่ดังเกินไป
                     player.playSound(player.getLocation(), Sound.ITEM_BOTTLE_FILL, 0.8f, 1.2f); 
-                    // ส่งข้อความบอกสถานะปัจจุบัน
                     player.sendMessage("§b[DynamicSurvival] คุณเติมน้ำใส่กระเป๋า (" + newCurrent + "/" + max + ")");
 
                 } else {
