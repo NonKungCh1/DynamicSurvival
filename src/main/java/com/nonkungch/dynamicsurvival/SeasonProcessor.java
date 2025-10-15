@@ -5,7 +5,6 @@ import org.bukkit.World;
 import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
 import org.bukkit.scheduler.BukkitRunnable;
-
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -31,8 +30,7 @@ public class SeasonProcessor extends BukkitRunnable {
     @Override
     public void run() {
         if (world == null) return;
-
-        plugin.getLogger().info("กำลังเริ่มต้นประมวลผลการเปลี่ยนแปลงโลกสำหรับฤดูกาล: " + newSeason.toString());
+        plugin.getLogger().info("Processing world changes for season: " + newSeason.toString());
 
         Set<org.bukkit.Chunk> chunksToProcess = new HashSet<>();
         world.getPlayers().forEach(p -> {
@@ -44,15 +42,14 @@ public class SeasonProcessor extends BukkitRunnable {
             }
         });
 
-        if (chunksToProcess.isEmpty()) {
-             chunksToProcess.add(world.getChunkAt(0, 0));
+        if (chunksToProcess.isEmpty() && !world.getPlayers().isEmpty()) {
+             chunksToProcess.add(world.getPlayers().iterator().next().getLocation().getChunk());
         }
 
         for (org.bukkit.Chunk chunk : chunksToProcess) {
              processChunk(chunk);
         }
-        
-        plugin.getLogger().info("การประมวลผลฤดูกาลสำหรับ " + newSeason.toString() + " เสร็จสมบูรณ์แล้ว.");
+        plugin.getLogger().info("Finished season processing for " + newSeason.toString());
     }
 
     private void processChunk(org.bukkit.Chunk chunk) {

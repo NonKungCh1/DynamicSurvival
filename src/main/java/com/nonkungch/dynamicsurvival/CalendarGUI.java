@@ -10,10 +10,8 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
-
 import java.util.Arrays;
 import java.util.List;
-
 import com.nonkungch.dynamicsurvival.DynamicSurvival.PlayerStats;
 
 public class CalendarGUI implements Listener {
@@ -26,16 +24,11 @@ public class CalendarGUI implements Listener {
 
     private static Material getGlassMaterialForSeason(Season season) {
         switch (season) {
-            case SPRING:
-                return Material.LIME_STAINED_GLASS_PANE; 
-            case SUMMER:
-                return Material.RED_STAINED_GLASS_PANE; 
-            case AUTUMN:
-                return Material.ORANGE_STAINED_GLASS_PANE; 
-            case WINTER:
-                return Material.LIGHT_BLUE_STAINED_GLASS_PANE; 
-            default:
-                return Material.GRAY_STAINED_GLASS_PANE;
+            case SPRING: return Material.LIME_STAINED_GLASS_PANE;
+            case SUMMER: return Material.RED_STAINED_GLASS_PANE;
+            case AUTUMN: return Material.ORANGE_STAINED_GLASS_PANE;
+            case WINTER: return Material.LIGHT_BLUE_STAINED_GLASS_PANE;
+            default: return Material.GRAY_STAINED_GLASS_PANE;
         }
     }
     
@@ -47,7 +40,7 @@ public class CalendarGUI implements Listener {
             currentSeason.getChatColor() + currentSeason.getThaiName(),
             Arrays.asList(
                 "§7--- ฤดูกาลปัจจุบัน ---",
-                "§eวันที่: §f" + plugin.getCurrentDay() + " / " + plugin.getConfigManager().getSeasonDuration(currentSeason), 
+                "§eวันที่: §f" + plugin.getCurrentDay() + " / " + plugin.getConfigManager().getSeasonDuration(currentSeason),
                 "§eคงเหลือ: §f" + (plugin.getConfigManager().getSeasonDuration(currentSeason) - plugin.getCurrentDay()) + " วัน",
                 " ",
                 "§7อุณหภูมิพื้นฐาน: §f" + plugin.getConfigManager().getBaseTemp(currentSeason) + "°C"
@@ -79,7 +72,6 @@ public class CalendarGUI implements Listener {
                     )));
             }
         }
-
         player.openInventory(gui);
     }
 

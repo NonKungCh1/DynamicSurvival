@@ -1,6 +1,7 @@
 package com.nonkungch.dynamicsurvival;
 
 import org.bukkit.configuration.file.FileConfiguration;
+import java.util.List;
 
 public class ConfigManager {
 
@@ -17,37 +18,35 @@ public class ConfigManager {
         this.config = plugin.getConfig();
     }
     
-    // --- New Settings (สำหรับ Weather/Display) ---
-    // แก้ไข: เพิ่มเมธอดที่ขาดหายไป
-    public double getWeatherChance() {
-        return config.getDouble("weather.change-chance", 0.05); // 5% chance per second tick
+    public String getScoreboardTitle() {
+        return config.getString("scoreboard.title", "§b§lDynamicSurvival");
     }
-    // แก้ไข: เพิ่มเมธอดที่ขาดหายไป
-    public String getDisplayMode() {
-        // Options: ACTION_BAR or SCOREBOARD
-        return config.getString("display-mode", "ACTION_BAR"); 
+
+    public List<String> getScoreboardLines() {
+        return config.getStringList("scoreboard.lines");
+    }
+
+    public int getWeatherChangeCooldownMinutes() {
+        return config.getInt("weather.change-cooldown-minutes", 15);
     }
     
-    // --- Season Durations ---
     public int getSeasonDuration(Season season) {
         return config.getInt("season-duration." + season.toString().toLowerCase(), 20);
     }
     
-    // --- Thirst Settings ---
     public int getMaxThirst() {
         return config.getInt("thirst.max-level", 100);
     }
     public int getBaseThirstLoss() {
         return config.getInt("thirst.base-loss-per-update", 1);
     }
+    public int getWaterBottleRestore() {
+        return config.getInt("thirst.water-bottle-restore", 30);
+    }
     public int getThirstDangerLevel() {
         return config.getInt("thirst.danger-level", 10);
     }
-    public int getWaterBottleRestore() {
-        return config.getInt("thirst.water-bottle-restore", 40);
-    }
     
-    // --- Temperature Settings (แก้ไข: เมธอดทั้งหมดถูกเพิ่มแล้ว) ---
     public float getBaseTemp(Season season) {
         return (float) config.getDouble("temperature.base-temp." + season.toString().toLowerCase(), 25.0);
     }
