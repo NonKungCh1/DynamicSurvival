@@ -4,7 +4,6 @@
 
 # การตั้งค่าฤดูกาล (Season)
 season-duration:
-  # ระยะเวลาของแต่ละฤดูกาล (หน่วยเป็นวันในเกม)
   spring: 20
   summer: 20
   autumn: 20
@@ -16,8 +15,8 @@ season-duration:
 thirst:
   max-level: 100
   base-loss-per-update: 1
-  danger-level: 10
   water-bottle-restore: 30
+  danger-level: 10 # ระดับที่เริ่มมี effect (Nausea) จากเวอร์ชันก่อน (ยังคงใช้ได้)
 
 # ====================================
 # การตั้งค่าอุณหภูมิ (Temperature)
@@ -43,22 +42,27 @@ weather:
   change-cooldown-minutes: 15
 
 # ====================================
-# การตั้งค่า Scoreboard (ใหม่)
+# การตั้งค่าผลกระทบพิเศษ (Special Effects)
+# ====================================
+special-effects:
+  nether:
+    # อุณหภูมิที่จะถูกบวกเพิ่มเข้าไปเมื่ออยู่ใน Nether
+    temperature-increase: 50.0
+    # ตัวคูณการลดลงของหลอดน้ำ (2.0 = เร็วขึ้น 2 เท่า)
+    thirst-loss-multiplier: 2.0
+
+# ====================================
+# การตั้งค่า Scoreboard
 # ====================================
 scoreboard:
-  # หัวข้อของ Scoreboard (ใช้รหัสสี & ได้)
   title: "&b&lDynamicSurvival"
-  
-  # เนื้อหาที่จะแสดงบน Scoreboard (เรียงจากบนลงล่าง)
-  # placeholders ที่ใช้ได้: %player_name%, %season_name%, %season_color%, %current_day%
-  # %season_duration%, %days_left%, %temperature%, %thirst_bar%, %thirst_value%, %thirst_max%
   lines:
     - "&7&m------------------"
     - "ฤดูกาล: %season_color%%season_name%"
     - "วันที่: &e%current_day% / %season_duration%"
-    - "" # บรรทัดว่าง
+    - ""
     - "อุณหภูมิ: %temperature%"
     - "ระดับน้ำ: %thirst_bar%"
-    - "" # บรรทัดว่าง
+    - ""
     - "ผู้เล่น: &a%player_name%"
     - "&7&m------------------"
