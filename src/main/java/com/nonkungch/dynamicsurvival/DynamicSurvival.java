@@ -29,6 +29,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+// (Enum Season ไม่มีการเปลี่ยนแปลง)
 enum Season {
     SPRING("ฤดูใบไม้ผลิ", "§a§l"),
     SUMMER("ฤดูร้อน", "§6§l"),
@@ -77,21 +78,17 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             getLogger().warning("No world found! Season system might not work correctly.");
         }
 
-        // Register Events
         Bukkit.getPluginManager().registerEvents(this, this);
         Bukkit.getPluginManager().registerEvents(new ThirstListener(this), this);
 
-        // Register Managers and Systems
         PouchManager pouchManager = new PouchManager(this);
         RecipeManager recipeManager = new RecipeManager(this, pouchManager);
         recipeManager.registerRecipes();
         Bukkit.getPluginManager().registerEvents(new PouchListener(this, pouchManager), this);
 
-        // Register Commands
         this.getCommand("ds").setExecutor(new DSCommand(this));
         new CalendarGUI(this);
 
-        // Start Core Loops
         startSeasonAndWeatherLoop();
         startStatsUpdateLoop();
     }
@@ -262,7 +259,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     private float calculateTemperature(Player player) {
         float temp = configManager.getBaseTemp(currentSeason);
 
-        // --- Leather Armor Set Bonus (Warmth) ---
         int leatherPieces = 0;
         for (ItemStack armor : player.getInventory().getArmorContents()) {
             if (armor != null) {
@@ -276,7 +272,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             temp += configManager.getLeatherArmorWarmthBonus();
         }
 
-        // --- Nether and Leaf Armor Set Bonus ---
         if (player.getWorld().getEnvironment() == World.Environment.NETHER) {
             float netherHeat = configManager.getNetherTempIncrease();
             int leafArmorPieces = 0;
@@ -295,9 +290,9 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             temp += Math.max(0, netherHeat);
         }
         
-        // --- Environmental Effects ---
         Block playerBlock = player.getLocation().getBlock();
-        if (playerBlock.getType() == Material.POWDERED_SNOW) {
+        // **แก้ไข: ใช้ POWDER_SNOW แทน POWDERED_SNOW**
+        if (playerBlock.getType() == Material.POWDER_SNOW) {
             temp += configManager.getPowderSnowTempDecrease();
         } else {
             boolean foundEnvEffect = false;
@@ -315,7 +310,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             } if (foundEnvEffect) break; } if (foundEnvEffect) break; }
         }
 
-        // --- Other Factors ---
         long time = player.getWorld().getTime();
         if (time < 12000) temp += (12000 - time) / 12000.0f * 5.0f;
         else temp -= (time - 12000) / 12000.0f * 5.0f;

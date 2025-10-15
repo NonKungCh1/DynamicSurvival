@@ -27,14 +27,13 @@ public class PouchManager {
     public ItemStack createPouch(int tier) {
         int capacity = plugin.getConfigManager().getPouchCapacity(tier);
         
-        ItemStack pouch = new ItemStack(Material.POTION); // ใช้ Potion เป็นไอเท็มฐาน
+        ItemStack pouch = new ItemStack(Material.POTION);
         ItemMeta meta = pouch.getItemMeta();
         
         meta.setDisplayName(ChatColor.AQUA + "กระเป๋าน้ำ [ขั้น " + tier + "]");
         
-        // เก็บข้อมูล NBT
         meta.getPersistentDataContainer().set(TIER_KEY, PersistentDataType.INTEGER, tier);
-        meta.getPersistentDataContainer().set(CURRENT_WATER_KEY, PersistentDataType.INTEGER, 0); // เริ่มต้นที่น้ำ 0
+        meta.getPersistentDataContainer().set(CURRENT_WATER_KEY, PersistentDataType.INTEGER, 0);
         meta.getPersistentDataContainer().set(MAX_WATER_KEY, PersistentDataType.INTEGER, capacity);
         
         pouch.setItemMeta(meta);
@@ -46,8 +45,9 @@ public class PouchManager {
         if (pouch == null || !pouch.hasItemMeta()) return pouch;
 
         ItemMeta meta = pouch.getItemMeta();
-        int current = meta.getPersistentDataContainer().getOrDefault(CURRENT_WATER_KEY, 0);
-        int max = meta.getPersistentDataContainer().getOrDefault(MAX_WATER_KEY, 0);
+        // **แก้ไข: เพิ่ม PersistentDataType.INTEGER เข้าไปใน getOrDefault**
+        int current = meta.getPersistentDataContainer().getOrDefault(CURRENT_WATER_KEY, PersistentDataType.INTEGER, 0);
+        int max = meta.getPersistentDataContainer().getOrDefault(MAX_WATER_KEY, PersistentDataType.INTEGER, 0);
 
         List<String> lore = new ArrayList<>();
         lore.add("§7บรรจุน้ำสำหรับดื่ม");

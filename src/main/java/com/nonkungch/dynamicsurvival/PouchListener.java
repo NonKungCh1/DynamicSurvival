@@ -32,19 +32,17 @@ public class PouchListener implements Listener {
 
         Action action = event.getAction();
         
-        // --- การดื่มน้ำ ---
         if (action == Action.RIGHT_CLICK_AIR) {
             event.setCancelled(true);
             ItemMeta meta = item.getItemMeta();
-            int current = meta.getPersistentDataContainer().getOrDefault(pouchManager.CURRENT_WATER_KEY, 0);
+            // **แก้ไข: เพิ่ม PersistentDataType.INTEGER เข้าไปใน getOrDefault**
+            int current = meta.getPersistentDataContainer().getOrDefault(pouchManager.CURRENT_WATER_KEY, PersistentDataType.INTEGER, 0);
 
             if (current > 0) {
-                // ลดน้ำในกระเป๋า
                 meta.getPersistentDataContainer().set(pouchManager.CURRENT_WATER_KEY, PersistentDataType.INTEGER, current - 1);
                 item.setItemMeta(meta);
                 pouchManager.updatePouchLore(item);
 
-                // เพิ่มค่าความกระหาย
                 DynamicSurvival.PlayerStats stats = plugin.getPlayerStats(player);
                 stats.addThirst(plugin.getConfigManager().getPouchRestoreAmount(), plugin.getConfigManager().getMaxThirst());
                 
@@ -55,7 +53,6 @@ public class PouchListener implements Listener {
             }
         }
         
-        // --- การเติมน้ำ ---
         if (action == Action.RIGHT_CLICK_BLOCK) {
             Block clickedBlock = event.getClickedBlock();
             if (clickedBlock == null) return;
@@ -66,11 +63,12 @@ public class PouchListener implements Listener {
             if (isWaterSource) {
                 event.setCancelled(true);
                 ItemMeta meta = item.getItemMeta();
-                int current = meta.getPersistentDataContainer().getOrDefault(pouchManager.CURRENT_WATER_KEY, 0);
-                int max = meta.getPersistentDataContainer().getOrDefault(pouchManager.MAX_WATER_KEY, 0);
+                // **แก้ไข: เพิ่ม PersistentDataType.INTEGER เข้าไปใน getOrDefault**
+                int current = meta.getPersistentDataContainer().getOrDefault(pouchManager.CURRENT_WATER_KEY, PersistentDataType.INTEGER, 0);
+                int max = meta.getPersistentDataContainer().getOrDefault(pouchManager.MAX_WATER_KEY, PersistentDataType.INTEGER, 0);
 
                 if (current < max) {
-                    meta.getPersistentDataContainer().set(pouchManager.CURRENT_WATER_KEY, PersistentDataType.INTEGER, max); // เติมเต็มถัง
+                    meta.getPersistentDataContainer().set(pouchManager.CURRENT_WATER_KEY, PersistentDataType.INTEGER, max);
                     item.setItemMeta(meta);
                     pouchManager.updatePouchLore(item);
 
