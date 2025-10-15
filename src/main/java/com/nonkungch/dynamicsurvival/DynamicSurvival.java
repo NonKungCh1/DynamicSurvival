@@ -2,28 +2,33 @@ package com.nonkungch.dynamicsurvival;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
-import org.bukkit.Material;
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-// (Enum Season ไม่มีการเปลี่ยนแปลง)
 enum Season {
     SPRING("ฤดูใบไม้ผลิ", "§a§l"), 
     SUMMER("ฤดูร้อน", "§6§l"),  
@@ -77,6 +82,9 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         this.getCommand("ds").setExecutor(new DSCommand(this));
         new CalendarGUI(this);
         
+        RecipeManager recipeManager = new RecipeManager(this);
+        recipeManager.registerRecipes();
+        
         startSeasonAndWeatherLoop();
         startStatsUpdateLoop();
     }
@@ -100,6 +108,19 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         Player player = event.getPlayer();
         playerBoards.remove(player);
         player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+    }
+    
+    @EventHandler
+    public void onPlayerRespawn(PlayerRespawnEvent event) {
+        Player player = event.getPlayer();
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (player.isOnline()) {
+                    sendScoreboardUpdate(player, getPlayerStats(player));
+                }
+            }
+        }.runTaskLater(this, 1L);
     }
 
     public Season getCurrentSeason() { return currentSeason; }
@@ -179,18 +200,20 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             @Override
             public void run() {
                 for (Player player : Bukkit.getOnlinePlayers()) {
-                    PlayerStats stats = getPlayerStats(player);
-                    float newTemp = calculateTemperature(player);
-                    stats.setTemperature(newTemp);
-                    updateThirst(player, stats);
-                    sendScoreboardUpdate(player, stats);
-                    applyStatusEffects(player, stats);
+                    if (player.isOnline()) {
+                        PlayerStats stats = getPlayerStats(player);
+                        float newTemp = calculateTemperature(player);
+                        stats.setTemperature(newTemp);
+                        updateThirst(player, stats);
+                        sendScoreboardUpdate(player, stats);
+                        applyStatusEffects(player, stats);
+                    }
                 }
             }
         }.runTaskTimer(this, 40L, 40L);
     }
 
-    private void sendScoreboardUpdate(Player player, PlayerStats stats) {
+    public void sendScoreboardUpdate(Player player, PlayerStats stats) {
         Scoreboard board = playerBoards.computeIfAbsent(player, p -> {
             Scoreboard newBoard = Bukkit.getScoreboardManager().getNewScoreboard();
             p.setScoreboard(newBoard);
@@ -232,9 +255,39 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
 
     private float calculateTemperature(Player player) {
         float temp = configManager.getBaseTemp(currentSeason);
+
         if (player.getWorld().getEnvironment() == World.Environment.NETHER) {
-            temp += configManager.getNetherTempIncrease();
+            float netherHeat = configManager.getNetherTempIncrease();
+            int leafArmorPieces = 0;
+            NamespacedKey key = new NamespacedKey(this, "is_leaf_armor");
+            for (ItemStack armorPiece : player.getInventory().getArmorContents()) {
+                if (armorPiece != null && armorPiece.hasItemMeta()) {
+                    ItemMeta meta = armorPiece.getItemMeta();
+                    if (meta.getPersistentDataContainer().has(key, PersistentDataType.BYTE)) {
+                        leafArmorPieces++;
+                    }
+                }
+            }
+            if (leafArmorPieces >= configManager.getLeafArmorRequiredPieces()) {
+                netherHeat -= configManager.getLeafArmorHeatReduction();
+            }
+            temp += Math.max(0, netherHeat);
         }
+
+        boolean foundEnvEffect = false;
+        for (int x = -2; x <= 2; x++) { for (int y = -1; y <= 2; y++) { for (int z = -2; z <= 2; z++) {
+            Block block = player.getLocation().getBlock().getRelative(x, y, z);
+            Block blockBelow = player.getLocation().getBlock().getRelative(0, -1, 0);
+            if (block.getType() == Material.WATER || blockBelow.getType() == Material.SNOW_BLOCK || blockBelow.getType() == Material.SNOW) {
+                temp += configManager.getWaterSnowTempDecrease();
+                foundEnvEffect = true; break;
+            }
+            if (block.getType() == Material.FIRE || block.getType() == Material.CAMPFIRE || block.getType() == Material.SOUL_CAMPFIRE) {
+                temp += configManager.getFireTempIncrease();
+                foundEnvEffect = true; break;
+            }
+        } if (foundEnvEffect) break; } if (foundEnvEffect) break; }
+
         long time = player.getWorld().getTime();
         if (time < 12000) temp += (12000 - time) / 12000.0f * 5.0f;
         else temp -= (time - 12000) / 12000.0f * 5.0f;
@@ -273,11 +326,9 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         } else if (temp > configManager.getHotTempThreshold()) {
             player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 60, 0, true, false));
         }
-
         if (stats.getThirst() <= 0) {
-            // **แก้ไข: ใช้ชื่อที่ถูกต้อง SLOWNESS และ NAUSEA**
-            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 1, true, false)); // เดินช้า
-            player.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 200, 0, true, false));   // มึนหัว
+            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 1, true, false));
+            player.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 200, 0, true, false));
         }
     }
 
