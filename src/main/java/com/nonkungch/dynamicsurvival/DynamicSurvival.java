@@ -1,4 +1,4 @@
-// /src/main/java/com/nonkungch/dynamicsurvival/DynamicSurvival.java (ฉบับแก้ไขสมบูรณ์)
+// /src/main/java/com/nonkungch/dynamicsurvival/DynamicSurvival.java (ฉบับสมบูรณ์)
 
 package com.nonkungch.dynamicsurvival;
 
@@ -32,21 +32,36 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+// (Enum Season ไม่มีการเปลี่ยนแปลง)
+enum Season {
+    SPRING("ฤดูใบไม้ผลิ", "§a§l"),
+    SUMMER("ฤดูร้อน", "§6§l"),
+    AUTUMN("ฤดูใบไม้ร่วง", "§c§l"),
+    WINTER("ฤดูหนาว", "§b§l");
+
+    private final String thaiName;
+    private final String chatColor;
+    Season(String thaiName, String chatColor) { this.thaiName = thaiName; this.chatColor = chatColor; }
+    public String getThaiName() { return thaiName; }
+    public String getChatColor() { return chatColor; }
+    public void processSeasonStart(DynamicSurvival plugin) { new SeasonProcessor(plugin, this).runTask(plugin); }
+}
+
 public class DynamicSurvival extends JavaPlugin implements Listener {
 
     private Season currentSeason = Season.SPRING;
-    private int currentDay = 1;
-    private long lastDayTime = 0;
     private long nextWeatherChangeTick = 0;
+    private int totalDaysInYear = 0;
 
     private final Map<Player, PlayerStats> playerStats = new HashMap<>();
     private final Map<Player, Scoreboard> playerBoards = new HashMap<>();
     public final Random random = new Random();
     private World trackedWorld;
     private ConfigManager configManager;
-
-    private File dataFile;
-    private FileConfiguration dataConfig;
+    
+    // ไม่จำเป็นต้องใช้ data file อีกต่อไป
+    // private File dataFile;
+    // private FileConfiguration dataConfig;
 
     @Override
     public void onEnable() {
@@ -55,14 +70,16 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         this.configManager = new ConfigManager(this);
         this.configManager.loadConfig();
 
-        setupDataFile();
-        loadData();
-
         if (!Bukkit.getWorlds().isEmpty()) {
             trackedWorld = Bukkit.getWorlds().get(0);
-            lastDayTime = trackedWorld.getFullTime();
         } else {
             getLogger().warning("No world found! Season system might not work correctly.");
+            return;
+        }
+
+        // คำนวณวันทั้งหมดใน 1 ปีของปลั๊กอิน
+        for (Season s : Season.values()) {
+            totalDaysInYear += configManager.getSeasonDuration(s);
         }
 
         Bukkit.getPluginManager().registerEvents(this, this);
@@ -75,17 +92,12 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
 
         this.getCommand("ds").setExecutor(new DSCommand(this));
         new CalendarGUI(this);
-        
-        DynamicSurvivalAPI.initialize(this);
-        getLogger().info("DynamicSurvival API has been initialized!");
 
-        startSeasonAndWeatherLoop();
-        startStatsUpdateLoop();
+        startMainLoop();
     }
 
     @Override
     public void onDisable() {
-        saveData();
         getLogger().info("DynamicSurvival Plugin is disabled!");
         Bukkit.getScheduler().cancelTasks(this);
     }
@@ -93,7 +105,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        playerStats.putIfAbsent(player, new PlayerStats(configManager.getBaseTemp(currentSeason), configManager.getMaxThirst()));
+        playerStats.putIfAbsent(player, new PlayerStats(configManager.getBaseTemp(getCurrentSeason()), configManager.getMaxThirst()));
         player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
     }
 
@@ -116,59 +128,89 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             }
         }.runTaskLater(this, 1L);
     }
+    
+    // --- ระบบคำนวณวันและฤดูกาลใหม่ ---
+    public int getCurrentDayInWorld() {
+        if (trackedWorld == null) return 1;
+        return (int) (trackedWorld.getFullTime() / 24000L);
+    }
+    
+    public Season getCurrentSeason() {
+        if (trackedWorld == null || totalDaysInYear <= 0) return Season.SPRING;
+        
+        int dayOfYear = getCurrentDayInWorld() % totalDaysInYear;
+        int dayCounter = 0;
 
-    public Season getCurrentSeason() { return currentSeason; }
-    public int getCurrentDay() { return currentDay; }
+        for (Season season : Season.values()) {
+            dayCounter += configManager.getSeasonDuration(season);
+            if (dayOfYear < dayCounter) {
+                return season;
+            }
+        }
+        return Season.SPRING; // Fallback
+    }
+
+    public int getCurrentDayInSeason() {
+        if (trackedWorld == null || totalDaysInYear <= 0) return 1;
+
+        int dayOfYear = getCurrentDayInWorld() % totalDaysInYear;
+        int previousSeasonsDuration = 0;
+
+        for (Season season : Season.values()) {
+            if (season == getCurrentSeason()) {
+                return dayOfYear - previousSeasonsDuration + 1;
+            }
+            previousSeasonsDuration += configManager.getSeasonDuration(season);
+        }
+        return 1; // Fallback
+    }
+
     public PlayerStats getPlayerStats(Player p) {
-        return playerStats.getOrDefault(p, new PlayerStats(configManager.getBaseTemp(currentSeason), configManager.getMaxThirst()));
+        return playerStats.getOrDefault(p, new PlayerStats(configManager.getBaseTemp(getCurrentSeason()), configManager.getMaxThirst()));
     }
     public ConfigManager getConfigManager() { return configManager; }
 
-    private void startSeasonAndWeatherLoop() {
+    private void startMainLoop() {
         new BukkitRunnable() {
             @Override
             public void run() {
                 if (trackedWorld == null) return;
-                long currentTime = trackedWorld.getFullTime();
-                if (currentTime / 24000 > lastDayTime / 24000) {
-                    onNewDay();
+                
+                // --- ตรวจสอบการเปลี่ยนฤดูกาล ---
+                Season newSeason = getCurrentSeason();
+                if (newSeason != currentSeason) {
+                    currentSeason = newSeason;
+                    String msg = String.format("§l§e--- %sการเปลี่ยนฤดูกาลครั้งใหญ่!%s ---", ChatColor.GOLD, ChatColor.RESET);
+                    String seasonMsg = String.format("%s! ฤดูกาลใหม่คือ: %s%s", ChatColor.YELLOW, currentSeason.getChatColor(), currentSeason.getThaiName());
+                    Bukkit.broadcastMessage(msg);
+                    Bukkit.broadcastMessage(seasonMsg);
+                    currentSeason.processSeasonStart(DynamicSurvival.this);
+                    Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage("§7(โปรดทราบว่าสภาพแวดล้อมได้เปลี่ยนไปแล้ว!)"));
                 }
-                lastDayTime = currentTime;
-                if (currentTime >= nextWeatherChangeTick) {
+                
+                // --- จัดการสภาพอากาศ ---
+                if (trackedWorld.getFullTime() >= nextWeatherChangeTick) {
                     applyRandomWeather();
                     long cooldownTicks = (long) configManager.getWeatherChangeCooldownMinutes() * 60 * 20;
-                    nextWeatherChangeTick = currentTime + cooldownTicks;
+                    nextWeatherChangeTick = trackedWorld.getFullTime() + cooldownTicks;
+                }
+
+                // --- อัปเดตสถานะผู้เล่น ---
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    if (player.isOnline()) {
+                        PlayerStats stats = getPlayerStats(player);
+                        float newTemp = calculateTemperature(player);
+                        stats.setTemperature(newTemp);
+                        updateThirst(player, stats);
+                        sendScoreboardUpdate(player, stats);
+                        applyStatusEffects(player, stats);
+                    }
                 }
             }
-        }.runTaskTimer(this, 20L, 20L);
-    }
-
-    private void onNewDay() {
-        currentDay++;
-        if (currentDay > configManager.getSeasonDuration(currentSeason)) {
-            changeSeason();
-        } else {
-            int daysLeft = configManager.getSeasonDuration(currentSeason) - currentDay;
-            Bukkit.broadcastMessage(String.format("§e[ปฏิทิน] วันที่ %d ใน %s%s§e (%d วันที่เหลือ)",
-                currentDay, currentSeason.getChatColor(), currentSeason.getThaiName(), daysLeft));
-        }
-        saveData();
-    }
-
-    private void changeSeason() {
-        currentSeason = currentSeason.next();
-        currentDay = 1;
-        String msg = String.format("§l§e--- %sการเปลี่ยนฤดูกาลครั้งใหญ่!%s ---", ChatColor.GOLD, ChatColor.RESET);
-        String seasonMsg = String.format("%s! ฤดูกาลใหม่คือ: %s%s", ChatColor.YELLOW, currentSeason.getChatColor(), currentSeason.getThaiName());
-        Bukkit.broadcastMessage(msg);
-        Bukkit.broadcastMessage(seasonMsg);
-        currentSeason.processSeasonStart(this);
-        Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage("§7(โปรดทราบว่าสภาพแวดล้อมได้เปลี่ยนไปแล้ว!)"));
-        saveData();
+        }.runTaskTimer(this, 40L, 40L);
     }
 
     private void applyRandomWeather() {
-        if (trackedWorld == null) return;
         if (trackedWorld.hasStorm() || trackedWorld.isThundering()) {
             if (random.nextDouble() < 0.5) {
                 trackedWorld.setStorm(false);
@@ -187,24 +229,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             trackedWorld.setThundering(false);
             Bukkit.broadcastMessage("§b[สภาพอากาศ] มีฝน/หิมะตก");
         }
-    }
-
-    private void startStatsUpdateLoop() {
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                for (Player player : Bukkit.getOnlinePlayers()) {
-                    if (player.isOnline()) {
-                        PlayerStats stats = getPlayerStats(player);
-                        float newTemp = calculateTemperature(player);
-                        stats.setTemperature(newTemp);
-                        updateThirst(player, stats);
-                        sendScoreboardUpdate(player, stats);
-                        applyStatusEffects(player, stats);
-                    }
-                }
-            }
-        }.runTaskTimer(this, 40L, 40L);
     }
 
     public void sendScoreboardUpdate(Player player, PlayerStats stats) {
@@ -232,13 +256,17 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     }
 
     private String replacePlaceholders(String line, Player player, PlayerStats stats) {
-        int daysLeft = configManager.getSeasonDuration(currentSeason) - currentDay;
+        Season season = getCurrentSeason();
+        int dayInSeason = getCurrentDayInSeason();
+        int seasonDuration = configManager.getSeasonDuration(season);
+        int daysLeft = seasonDuration - dayInSeason;
+
         line = ChatColor.translateAlternateColorCodes('&', line);
         line = line.replace("%player_name%", player.getName());
-        line = line.replace("%season_name%", currentSeason.getThaiName());
-        line = line.replace("%season_color%", currentSeason.getChatColor());
-        line = line.replace("%current_day%", String.valueOf(currentDay));
-        line = line.replace("%season_duration%", String.valueOf(configManager.getSeasonDuration(currentSeason)));
+        line = line.replace("%season_name%", season.getThaiName());
+        line = line.replace("%season_color%", season.getChatColor());
+        line = line.replace("%current_day%", String.valueOf(dayInSeason));
+        line = line.replace("%season_duration%", String.valueOf(seasonDuration));
         line = line.replace("%days_left%", String.valueOf(daysLeft));
         line = line.replace("%temperature%", getTemperatureColor(stats.getTemperature()) + String.format("%.1f°C", stats.getTemperature()));
         line = line.replace("%thirst_value%", String.valueOf(stats.getThirst()));
@@ -247,45 +275,41 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     }
 
     private float calculateTemperature(Player player) {
-        float temp = configManager.getBaseTemp(currentSeason);
+        float temp = configManager.getBaseTemp(getCurrentSeason());
         Biome biome = player.getLocation().getBlock().getBiome();
         String biomeName = biome.name();
 
         if (biomeName.contains("DESERT")) {
-            // No direct temp effect
+            // No direct temp effect, handled in thirst
         } else if (biomeName.contains("SNOW") || biomeName.contains("TAIGA") || biomeName.contains("ICE_SPIKES") || biomeName.contains("FROZEN")) {
             temp += configManager.getColdBiomeTempDecrease();
         }
 
         int leatherPieces = 0;
-        int leafArmorPieces = 0;
-        NamespacedKey key = new NamespacedKey(this, "is_leaf_armor");
-
         for (ItemStack armor : player.getInventory().getArmorContents()) {
             if (armor != null) {
                 Material type = armor.getType();
                 if (type == Material.LEATHER_HELMET || type == Material.LEATHER_CHESTPLATE || type == Material.LEATHER_LEGGINGS || type == Material.LEATHER_BOOTS) {
                     leatherPieces++;
                 }
-                if (armor.hasItemMeta()) {
-                    ItemMeta meta = armor.getItemMeta();
+            }
+        }
+        if (leatherPieces >= configManager.getLeatherArmorRequiredPieces()) {
+            temp += configManager.getLeatherArmorWarmthBonus();
+        }
+
+        if (player.getWorld().getEnvironment() == World.Environment.NETHER) {
+            float netherHeat = configManager.getNetherTempIncrease();
+            int leafArmorPieces = 0;
+            NamespacedKey key = new NamespacedKey(this, "is_leaf_armor");
+            for (ItemStack armorPiece : player.getInventory().getArmorContents()) {
+                if (armorPiece != null && armorPiece.hasItemMeta()) {
+                    ItemMeta meta = armorPiece.getItemMeta();
                     if (meta.getPersistentDataContainer().has(key, PersistentDataType.BYTE)) {
                         leafArmorPieces++;
                     }
                 }
             }
-        }
-        
-        if (leatherPieces >= configManager.getLeatherArmorRequiredPieces()) {
-            temp += configManager.getLeatherArmorWarmthBonus();
-        }
-        
-        if (leafArmorPieces >= configManager.getLeafArmorRequiredPieces()) {
-            temp -= configManager.getLeafArmorTempReduction();
-        }
-
-        if (player.getWorld().getEnvironment() == World.Environment.NETHER) {
-            float netherHeat = configManager.getNetherTempIncrease();
             if (leafArmorPieces >= configManager.getLeafArmorRequiredPieces()) {
                 netherHeat -= configManager.getLeafArmorHeatReduction();
             }
@@ -355,31 +379,9 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         }
         if (stats.getThirst() <= 0) {
             player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 1, true, false));
-            player.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 200, 0, true, false));
+            // --- ส่วนที่แก้ไข: ลดระยะเวลา Nausea ---
+            player.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 100, 0, true, false)); // จาก 200 เหลือ 100 ticks
         }
-    }
-
-    private void setupDataFile() {
-        dataFile = new File(getDataFolder(), "data.yml");
-        if (!dataFile.exists()) {
-            try { dataFile.createNewFile(); } catch (IOException e) { getLogger().severe("Could not create data.yml!"); }
-        }
-        dataConfig = YamlConfiguration.loadConfiguration(dataFile);
-    }
-
-    private void loadData() {
-        if (dataConfig.contains("season")) {
-            this.currentSeason = Season.valueOf(dataConfig.getString("season", "SPRING"));
-        }
-        if (dataConfig.contains("day")) {
-            this.currentDay = dataConfig.getInt("day", 1);
-        }
-    }
-
-    private void saveData() {
-        dataConfig.set("season", currentSeason.name());
-        dataConfig.set("day", currentDay);
-        try { dataConfig.save(dataFile); } catch (IOException e) { getLogger().severe("Could not save data to data.yml!"); }
     }
 
     private ChatColor getTemperatureColor(float temp) {
