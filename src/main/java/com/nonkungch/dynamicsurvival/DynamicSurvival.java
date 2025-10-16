@@ -1,4 +1,4 @@
-// /src/main/java/com/nonkungch/dynamicsurvival/DynamicSurvival.java (ฉบับสมบูรณ์)
+// /src/main/java/com/nonkungch/dynamicsurvival/DynamicSurvival.java (ฉบับแก้ไขสมบูรณ์)
 
 package com.nonkungch.dynamicsurvival;
 
@@ -32,6 +32,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+// (สมมติว่ามีการสร้างไฟล์ Season.java แยกออกมาแล้ว)
+// (สมมติว่ามีการสร้างไฟล์ DynamicSurvivalAPI.java แยกออกมาแล้ว)
 
 public class DynamicSurvival extends JavaPlugin implements Listener {
 
@@ -44,10 +46,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     public final Random random = new Random();
     private World trackedWorld;
     private ConfigManager configManager;
-    
-    // ไม่จำเป็นต้องใช้ data file อีกต่อไป
-    // private File dataFile;
-    // private FileConfiguration dataConfig;
 
     @Override
     public void onEnable() {
@@ -62,6 +60,11 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             getLogger().warning("No world found! Season system might not work correctly.");
             return;
         }
+
+        // ✅ [แก้ไข] เปิดใช้งาน API ก่อนที่จะมีใครเรียกใช้
+        DynamicSurvivalAPI.initialize(this);
+        getLogger().info("DynamicSurvival API has been initialized for addons!"); 
+        // ✅
 
         // คำนวณวันทั้งหมดใน 1 ปีของปลั๊กอิน
         for (Season s : Season.values()) {
@@ -115,7 +118,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         }.runTaskLater(this, 1L);
     }
     
-    // --- ระบบคำนวณวันและฤดูกาลใหม่ ---
     public int getCurrentDayInWorld() {
         if (trackedWorld == null) return 1;
         return (int) (trackedWorld.getFullTime() / 24000L);
@@ -133,7 +135,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
                 return season;
             }
         }
-        return Season.SPRING; // Fallback
+        return Season.SPRING;
     }
 
     public int getCurrentDayInSeason() {
@@ -148,7 +150,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             }
             previousSeasonsDuration += configManager.getSeasonDuration(season);
         }
-        return 1; // Fallback
+        return 1;
     }
 
     public PlayerStats getPlayerStats(Player p) {
@@ -162,7 +164,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             public void run() {
                 if (trackedWorld == null) return;
                 
-                // --- ตรวจสอบการเปลี่ยนฤดูกาล ---
                 Season newSeason = getCurrentSeason();
                 if (newSeason != currentSeason) {
                     currentSeason = newSeason;
@@ -174,14 +175,12 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
                     Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage("§7(โปรดทราบว่าสภาพแวดล้อมได้เปลี่ยนไปแล้ว!)"));
                 }
                 
-                // --- จัดการสภาพอากาศ ---
                 if (trackedWorld.getFullTime() >= nextWeatherChangeTick) {
                     applyRandomWeather();
                     long cooldownTicks = (long) configManager.getWeatherChangeCooldownMinutes() * 60 * 20;
                     nextWeatherChangeTick = trackedWorld.getFullTime() + cooldownTicks;
                 }
 
-                // --- อัปเดตสถานะผู้เล่น ---
                 for (Player player : Bukkit.getOnlinePlayers()) {
                     if (player.isOnline()) {
                         PlayerStats stats = getPlayerStats(player);
@@ -266,7 +265,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         String biomeName = biome.name();
 
         if (biomeName.contains("DESERT")) {
-            // No direct temp effect, handled in thirst
         } else if (biomeName.contains("SNOW") || biomeName.contains("TAIGA") || biomeName.contains("ICE_SPIKES") || biomeName.contains("FROZEN")) {
             temp += configManager.getColdBiomeTempDecrease();
         }
@@ -365,8 +363,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         }
         if (stats.getThirst() <= 0) {
             player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 1, true, false));
-            // --- ส่วนที่แก้ไข: ลดระยะเวลา Nausea ---
-            player.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 100, 0, true, false)); // จาก 200 เหลือ 100 ticks
+            player.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 100, 0, true, false));
         }
     }
 
