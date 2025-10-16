@@ -1,4 +1,4 @@
-// /src/main/java/com/nonkungch/dynamicsurvival/DynamicSurvival.java (ฉบับสมบูรณ์)
+// /src/main/java/com/nonkungch/dynamicsurvival/DynamicSurvival.java (ฉบับแก้ไขสมบูรณ์)
 
 package com.nonkungch.dynamicsurvival;
 
@@ -32,21 +32,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-// (Enum Season ไม่มีการเปลี่ยนแปลง)
-enum Season {
-    SPRING("ฤดูใบไม้ผลิ", "§a§l"),
-    SUMMER("ฤดูร้อน", "§6§l"),
-    AUTUMN("ฤดูใบไม้ร่วง", "§c§l"),
-    WINTER("ฤดูหนาว", "§b§l");
-
-    private final String thaiName;
-    private final String chatColor;
-    Season(String thaiName, String chatColor) { this.thaiName = thaiName; this.chatColor = chatColor; }
-    public Season next() { return values()[(ordinal() + 1) % values().length]; }
-    public String getThaiName() { return thaiName; }
-    public String getChatColor() { return chatColor; }
-    public void processSeasonStart(DynamicSurvival plugin) { new SeasonProcessor(plugin, this).runTask(plugin); }
-}
+// ✅ ลบ enum Season ออกจากไฟล์นี้ เพราะเราได้ย้ายไปที่ Season.java แล้ว
 
 public class DynamicSurvival extends JavaPlugin implements Listener {
 
@@ -84,15 +70,18 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(this, this);
 
         PouchManager pouchManager = new PouchManager(this);
-        // --- ส่วนที่แก้ไข ---
         Bukkit.getPluginManager().registerEvents(new ThirstListener(this), this);
-        // ------------------
         RecipeManager recipeManager = new RecipeManager(this, pouchManager);
         recipeManager.registerRecipes();
         Bukkit.getPluginManager().registerEvents(new PouchListener(this, pouchManager), this);
 
         this.getCommand("ds").setExecutor(new DSCommand(this));
         new CalendarGUI(this);
+
+        // --- ✅ [เพิ่ม] เปิดใช้งาน API ของเรา ---
+        DynamicSurvivalAPI.initialize(this);
+        getLogger().info("DynamicSurvival API has been initialized!");
+        // ------------------------------------
 
         startSeasonAndWeatherLoop();
         startStatsUpdateLoop();
@@ -266,13 +255,11 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         Biome biome = player.getLocation().getBlock().getBiome();
         String biomeName = biome.name();
 
-        // --- ส่วนที่แก้ไข: Biome Effects ---
         if (biomeName.contains("DESERT")) {
-            // ไม่มีผลกับอุณหภูมิโดยตรง แต่มีผลกับ thirst
+            // No direct temp effect
         } else if (biomeName.contains("SNOW") || biomeName.contains("TAIGA") || biomeName.contains("ICE_SPIKES") || biomeName.contains("FROZEN")) {
-            temp += configManager.getColdBiomeTempDecrease(); // ใช้ค่าจาก Config
+            temp += configManager.getColdBiomeTempDecrease();
         }
-        // ------------------------------------
 
         int leatherPieces = 0;
         for (ItemStack armor : player.getInventory().getArmorContents()) {
@@ -340,12 +327,10 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     private void updateThirst(Player player, PlayerStats stats) {
         double thirstLoss = configManager.getBaseThirstLoss();
         
-        // --- ส่วนที่แก้ไข: Biome Effects ---
         Biome biome = player.getLocation().getBlock().getBiome();
         if (biome.name().contains("DESERT")) {
-            thirstLoss *= configManager.getDesertThirstMultiplier(); // ใช้ค่าจาก Config
+            thirstLoss *= configManager.getDesertThirstMultiplier();
         }
-        // ---------------------------------
         
         if (stats.getTemperature() > configManager.getHotTempThreshold()) thirstLoss *= 2;
         if (player.isSprinting()) thirstLoss += 1;
