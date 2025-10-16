@@ -32,8 +32,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-// ✅ ลบ enum Season ออกจากไฟล์นี้ เพราะเราได้ย้ายไปที่ Season.java แล้ว
-
 public class DynamicSurvival extends JavaPlugin implements Listener {
 
     private Season currentSeason = Season.SPRING;
@@ -77,11 +75,9 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
 
         this.getCommand("ds").setExecutor(new DSCommand(this));
         new CalendarGUI(this);
-
-        // --- ✅ [เพิ่ม] เปิดใช้งาน API ของเรา ---
+        
         DynamicSurvivalAPI.initialize(this);
         getLogger().info("DynamicSurvival API has been initialized!");
-        // ------------------------------------
 
         startSeasonAndWeatherLoop();
         startStatsUpdateLoop();
@@ -262,30 +258,34 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         }
 
         int leatherPieces = 0;
+        int leafArmorPieces = 0;
+        NamespacedKey key = new NamespacedKey(this, "is_leaf_armor");
+
         for (ItemStack armor : player.getInventory().getArmorContents()) {
             if (armor != null) {
                 Material type = armor.getType();
                 if (type == Material.LEATHER_HELMET || type == Material.LEATHER_CHESTPLATE || type == Material.LEATHER_LEGGINGS || type == Material.LEATHER_BOOTS) {
                     leatherPieces++;
                 }
-            }
-        }
-        if (leatherPieces >= configManager.getLeatherArmorRequiredPieces()) {
-            temp += configManager.getLeatherArmorWarmthBonus();
-        }
-
-        if (player.getWorld().getEnvironment() == World.Environment.NETHER) {
-            float netherHeat = configManager.getNetherTempIncrease();
-            int leafArmorPieces = 0;
-            NamespacedKey key = new NamespacedKey(this, "is_leaf_armor");
-            for (ItemStack armorPiece : player.getInventory().getArmorContents()) {
-                if (armorPiece != null && armorPiece.hasItemMeta()) {
-                    ItemMeta meta = armorPiece.getItemMeta();
+                if (armor.hasItemMeta()) {
+                    ItemMeta meta = armor.getItemMeta();
                     if (meta.getPersistentDataContainer().has(key, PersistentDataType.BYTE)) {
                         leafArmorPieces++;
                     }
                 }
             }
+        }
+        
+        if (leatherPieces >= configManager.getLeatherArmorRequiredPieces()) {
+            temp += configManager.getLeatherArmorWarmthBonus();
+        }
+        
+        if (leafArmorPieces >= configManager.getLeafArmorRequiredPieces()) {
+            temp -= configManager.getLeafArmorTempReduction();
+        }
+
+        if (player.getWorld().getEnvironment() == World.Environment.NETHER) {
+            float netherHeat = configManager.getNetherTempIncrease();
             if (leafArmorPieces >= configManager.getLeafArmorRequiredPieces()) {
                 netherHeat -= configManager.getLeafArmorHeatReduction();
             }

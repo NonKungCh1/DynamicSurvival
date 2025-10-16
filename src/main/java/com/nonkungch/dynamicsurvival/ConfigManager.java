@@ -20,7 +20,7 @@ public class ConfigManager {
         this.config = plugin.getConfig();
     }
 
-    // --- Biome Effects (ส่วนที่เพิ่มเข้ามา) ---
+    // --- Biome Effects ---
     public double getDesertThirstMultiplier() {
         return config.getDouble("biome-effects.desert.thirst-loss-multiplier", 2.0);
     }
@@ -34,6 +34,11 @@ public class ConfigManager {
     }
     public float getLeafArmorHeatReduction() {
         return (float) config.getDouble("special-effects.leaf-armor-set-bonus.nether-heat-reduction", 60.0);
+    }
+    
+    // ✅ [เพิ่ม] เพิ่มฟังก์ชันสำหรับดึงค่าการลดอุณหภูมิในโลกปกติ
+    public float getLeafArmorTempReduction() {
+        return (float) config.getDouble("special-effects.leaf-armor-set-bonus.temperature-reduction", 5.0);
     }
 
     // --- Special Effects: Leather Armor ---
