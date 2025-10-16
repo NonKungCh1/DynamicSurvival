@@ -73,25 +73,35 @@ scoreboard:
     - "วันที่: &e%current_day% / %season_duration%"
     - ""
     - "อุณหภูมิ: %temperature%"
-    # --- แก้ไขตรงนี้ ---
     - "ระดับน้ำ: &b%thirst_value%/%thirst_max%" 
-    # ------------------
     - ""
     - "ผู้เล่น: &a%player_name%"
     - "&7&m------------------"
 
-# ====================================
-# Water Pouch Setting 
-# ====================================
+# ---------------------------- #
+#         Biome Effects        #
+# ---------------------------- #
+# การตั้งค่าพิเศษสำหรับ Biome ต่างๆ
+biome-effects:
+  desert:
+    # ตัวคูณการเสียน้ำเมื่ออยู่ใน Biome ทะเลทราย (2.0 = เร็วขึ้น 2 เท่า)
+    thirst-loss-multiplier: 2.0
+  cold-biome:
+    # ค่าอุณหภูมิที่จะลดลงเพิ่มเติมเมื่ออยู่ใน Biome ที่หนาวเย็น (เช่น Taiga, Snow)
+    # ค่าติดลบหมายถึงทำให้อุณหภูมิลดลง
+    temperature-decrease: -7.0
 
+# ---------------------------- #
+#      Water Pouch Settings    #
+# ---------------------------- #
 water-pouch:
-  # ปริมาณความกระหายที่ฟื้นฟูต่อการดื่ม 1 ครั้ง
   thirst-restore-amount: 30
+  drink-cooldown-seconds: 1.5
   tiers:
     1:
       capacity: 6
     2:
-      capacity: 15
+      capacity: 12
     3:
-      capacity: 30
+      capacity: 20
 
