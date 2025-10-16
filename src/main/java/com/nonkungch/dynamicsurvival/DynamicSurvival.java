@@ -1,3 +1,5 @@
+// /src/main/java/com/nonkungch/dynamicsurvival/DynamicSurvival.java (ฉบับสมบูรณ์)
+
 package com.nonkungch.dynamicsurvival;
 
 import org.bukkit.Bukkit;
@@ -5,6 +7,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -79,9 +82,11 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         }
 
         Bukkit.getPluginManager().registerEvents(this, this);
-        Bukkit.getPluginManager().registerEvents(new ThirstListener(this), this);
 
         PouchManager pouchManager = new PouchManager(this);
+        // --- ส่วนที่แก้ไข ---
+        Bukkit.getPluginManager().registerEvents(new ThirstListener(this), this);
+        // ------------------
         RecipeManager recipeManager = new RecipeManager(this, pouchManager);
         recipeManager.registerRecipes();
         Bukkit.getPluginManager().registerEvents(new PouchListener(this, pouchManager), this);
@@ -258,6 +263,16 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
 
     private float calculateTemperature(Player player) {
         float temp = configManager.getBaseTemp(currentSeason);
+        Biome biome = player.getLocation().getBlock().getBiome();
+        String biomeName = biome.name();
+
+        // --- ส่วนที่แก้ไข: Biome Effects ---
+        if (biomeName.contains("DESERT")) {
+            // ไม่มีผลกับอุณหภูมิโดยตรง แต่มีผลกับ thirst
+        } else if (biomeName.contains("SNOW") || biomeName.contains("TAIGA") || biomeName.contains("ICE_SPIKES") || biomeName.contains("FROZEN")) {
+            temp += configManager.getColdBiomeTempDecrease(); // ใช้ค่าจาก Config
+        }
+        // ------------------------------------
 
         int leatherPieces = 0;
         for (ItemStack armor : player.getInventory().getArmorContents()) {
@@ -291,7 +306,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         }
         
         Block playerBlock = player.getLocation().getBlock();
-        // **แก้ไข: ใช้ POWDER_SNOW แทน POWDERED_SNOW**
         if (playerBlock.getType() == Material.POWDER_SNOW) {
             temp += configManager.getPowderSnowTempDecrease();
         } else {
@@ -315,9 +329,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         else temp -= (time - 12000) / 12000.0f * 5.0f;
         if (player.getWorld().hasStorm()) temp -= 3.0f;
         if (player.getWorld().isThundering()) temp -= 5.0f;
-        String biome = player.getLocation().getBlock().getBiome().toString();
-        if (biome.contains("DESERT")) temp += 5.0f;
-        if (biome.contains("SNOW") || biome.contains("TAIGA")) temp -= 5.0f;
+        
         if (player.getLocation().getBlock().getRelative(0, -1, 0).getType() == Material.FIRE ||
             player.getLocation().getBlock().getRelative(0, -1, 0).getType() == Material.LAVA) {
             temp += 5.0f;
@@ -327,6 +339,14 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
 
     private void updateThirst(Player player, PlayerStats stats) {
         double thirstLoss = configManager.getBaseThirstLoss();
+        
+        // --- ส่วนที่แก้ไข: Biome Effects ---
+        Biome biome = player.getLocation().getBlock().getBiome();
+        if (biome.name().contains("DESERT")) {
+            thirstLoss *= configManager.getDesertThirstMultiplier(); // ใช้ค่าจาก Config
+        }
+        // ---------------------------------
+        
         if (stats.getTemperature() > configManager.getHotTempThreshold()) thirstLoss *= 2;
         if (player.isSprinting()) thirstLoss += 1;
         if (player.getWorld().getEnvironment() == World.Environment.NETHER) {

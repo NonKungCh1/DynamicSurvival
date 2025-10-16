@@ -1,3 +1,5 @@
+// /src/main/java/com/nonkungch/dynamicsurvival/ConfigManager.java (ฉบับสมบูรณ์)
+
 package com.nonkungch.dynamicsurvival;
 
 import org.bukkit.configuration.file.FileConfiguration;
@@ -16,6 +18,14 @@ public class ConfigManager {
     public void loadConfig() {
         plugin.reloadConfig();
         this.config = plugin.getConfig();
+    }
+
+    // --- Biome Effects (ส่วนที่เพิ่มเข้ามา) ---
+    public double getDesertThirstMultiplier() {
+        return config.getDouble("biome-effects.desert.thirst-loss-multiplier", 2.0);
+    }
+    public float getColdBiomeTempDecrease() {
+        return (float) config.getDouble("biome-effects.cold-biome.temperature-decrease", -7.0);
     }
 
     // --- Special Effects: Leaf Armor ---
@@ -57,6 +67,9 @@ public class ConfigManager {
     }
     public int getPouchRestoreAmount() {
         return config.getInt("water-pouch.thirst-restore-amount", 30);
+    }
+    public double getPouchDrinkCooldown() {
+        return config.getDouble("water-pouch.drink-cooldown-seconds", 1.5);
     }
 
     // --- Scoreboard Settings ---

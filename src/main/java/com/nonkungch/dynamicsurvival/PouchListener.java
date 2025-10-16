@@ -1,4 +1,4 @@
-// นี่คือโค้ดที่ถูกต้องและสมบูรณ์สำหรับ PouchListener.java
+// /src/main/java/com/nonkungch/dynamicsurvival/PouchListener.java (ฉบับสมบูรณ์)
 
 package com.nonkungch.dynamicsurvival;
 
@@ -16,11 +16,15 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 public class PouchListener implements Listener {
 
     private final DynamicSurvival plugin;
     private final PouchManager pouchManager;
+    private final Map<UUID, Long> cooldowns = new HashMap<>();
 
     public PouchListener(DynamicSurvival plugin, PouchManager pouchManager) {
         this.plugin = plugin;
@@ -36,13 +40,24 @@ public class PouchListener implements Listener {
 
         Action action = event.getAction();
         
-        // --- ส่วนของการดื่มน้ำ (เหมือนเดิม) ---
+        // --- ส่วนของการดื่มน้ำ (เพิ่มระบบ Cooldown) ---
         if (action == Action.RIGHT_CLICK_AIR) {
             event.setCancelled(true);
+
+            long cooldownTime = (long) (plugin.getConfigManager().getPouchDrinkCooldown() * 1000);
+            long lastDrinkTime = cooldowns.getOrDefault(player.getUniqueId(), 0L);
+            long currentTime = System.currentTimeMillis();
+
+            if (currentTime - lastDrinkTime < cooldownTime) {
+                return; 
+            }
+            
             ItemMeta meta = item.getItemMeta();
             int current = meta.getPersistentDataContainer().getOrDefault(pouchManager.CURRENT_WATER_KEY, PersistentDataType.INTEGER, 0);
 
             if (current > 0) {
+                cooldowns.put(player.getUniqueId(), currentTime);
+
                 meta.getPersistentDataContainer().set(pouchManager.CURRENT_WATER_KEY, PersistentDataType.INTEGER, current - 1);
                 item.setItemMeta(meta);
                 pouchManager.updatePouchLore(item);
@@ -57,22 +72,16 @@ public class PouchListener implements Listener {
             }
         }
         
-        // --- ส่วนของการเติมน้ำ (เพิ่มทีละ 1) ---
+        // --- ส่วนของการเติมน้ำ (แก้ไข Logic ทั้งหมด) ---
         if (action == Action.RIGHT_CLICK_BLOCK) {
             Block clickedBlock = event.getClickedBlock();
             if (clickedBlock == null) return;
 
-            // ตรวจสอบแหล่งน้ำ
-            Material blockType = clickedBlock.getType();
-            BlockData blockData = clickedBlock.getBlockData();
-            boolean isWaterSource = false;
+            // แก้ไขเงื่อนไข: ตรวจสอบบล็อกที่เป็นน้ำนิ่ง (Source Block) เท่านั้น
+            boolean isWaterSource = (clickedBlock.getType() == Material.WATER && ((Levelled) clickedBlock.getBlockData()).getLevel() == 0)
+                                 || clickedBlock.getType() == Material.WATER_CAULDRON
+                                 || (clickedBlock.getBlockData() instanceof Waterlogged && ((Waterlogged) clickedBlock.getBlockData()).isWaterlogged());
 
-            if (blockType == Material.WATER || blockType == Material.WATER_CAULDRON) {
-                isWaterSource = true;
-            } else if (blockData instanceof Waterlogged && ((Waterlogged) blockData).isWaterlogged()) {
-                isWaterSource = true;
-            }
-            
             if (isWaterSource) {
                 event.setCancelled(true);
                 ItemMeta meta = item.getItemMeta();
@@ -80,6 +89,18 @@ public class PouchListener implements Listener {
                 int max = meta.getPersistentDataContainer().getOrDefault(pouchManager.MAX_WATER_KEY, PersistentDataType.INTEGER, 0);
 
                 if (current < max) {
+                    // Logic ลดน้ำในหม้อ
+                    if (clickedBlock.getType() == Material.WATER_CAULDRON) {
+                        Levelled cauldronData = (Levelled) clickedBlock.getBlockData();
+                        int newLevel = cauldronData.getLevel() - 1;
+                        if (newLevel <= 0) {
+                            clickedBlock.setType(Material.CAULDRON);
+                        } else {
+                            cauldronData.setLevel(newLevel);
+                            clickedBlock.setBlockData(cauldronData);
+                        }
+                    }
+
                     int newCurrent = current + 1;
                     meta.getPersistentDataContainer().set(pouchManager.CURRENT_WATER_KEY, PersistentDataType.INTEGER, newCurrent);
                     item.setItemMeta(meta);
@@ -87,7 +108,6 @@ public class PouchListener implements Listener {
 
                     player.playSound(player.getLocation(), Sound.ITEM_BOTTLE_FILL, 0.8f, 1.2f); 
                     player.sendMessage("§b[DynamicSurvival] คุณเติมน้ำใส่กระเป๋า (" + newCurrent + "/" + max + ")");
-
                 } else {
                     player.sendMessage("§e[DynamicSurvival] กระเป๋าน้ำของคุณเต็มแล้ว");
                 }
