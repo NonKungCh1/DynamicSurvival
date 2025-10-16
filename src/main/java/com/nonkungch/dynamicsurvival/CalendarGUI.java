@@ -40,8 +40,8 @@ public class CalendarGUI implements Listener {
             currentSeason.getChatColor() + currentSeason.getThaiName(),
             Arrays.asList(
                 "§7--- ฤดูกาลปัจจุบัน ---",
-                "§eวันที่: §f" + plugin.getCurrentDay() + " / " + plugin.getConfigManager().getSeasonDuration(currentSeason),
-                "§eคงเหลือ: §f" + (plugin.getConfigManager().getSeasonDuration(currentSeason) - plugin.getCurrentDay()) + " วัน",
+                "§eวันที่: §f" + plugin.getCurrentDayInSeason() + " / " + plugin.getConfigManager().getSeasonDuration(currentSeason),
+                "§eคงเหลือ: §f" + (plugin.getConfigManager().getSeasonDuration(currentSeason) - plugin.getCurrentDayInSeason()) + " วัน",
                 " ",
                 "§7อุณหภูมิพื้นฐาน: §f" + plugin.getConfigManager().getBaseTemp(currentSeason) + "°C"
             ));
