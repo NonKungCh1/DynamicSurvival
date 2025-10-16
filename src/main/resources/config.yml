@@ -1,74 +1,99 @@
 # ===============================================================
 # DynamicSurvival v1.0 Configuration
 # ===============================================================
+# แก้ไขค่าต่างๆ ที่นี่ แล้วใช้คำสั่ง /ds reload ในเกมเพื่ออัปเดต
+# ===============================================================
 
 # --- การตั้งค่าฤดูกาล ---
+# กำหนดจำนวนวันในเกมสำหรับแต่ละฤดูกาล
 season-duration:
-  spring: 20  # จำนวนวันในฤดูใบไม้ผลิ (หน่วย: วันในเกม)
-  summer: 20  # จำนวนวันในฤดูร้อน
-  autumn: 20  # จำนวนวันในฤดูใบไม้ร่วง
-  winter: 20  # จำนวนวันในฤดูหนาว
+  spring: 20
+  summer: 20
+  autumn: 20
+  winter: 20
 
 # --- การตั้งค่าอุณหภูมิ ---
 temperature:
   base-temp:
-    spring: 25.0  # อุณหภูมิพื้นฐานของฤดูใบไม้ผลิ
-    summer: 35.0  # อุณหภูมิพื้นฐานของฤดูร้อน
-    autumn: 20.0  # อุณหภูมิพื้นฐานของฤดูใบไม้ร่วง
-    winter: -5.0   # อุณหภูมิพื้นฐานของฤดูหนาว
+    spring: 25.0
+    summer: 35.0
+    autumn: 20.0
+    winter: -5.0
+  # กำหนดช่วงอุณหภูมิที่จะส่งผลกระทบต่อผู้เล่น
   thresholds:
-    normal: 25.0      # จุดเริ่มต้นของโซนอุณหภูมิ 'ปกติ'
-    hot: 35.0         # จุดเริ่มต้นของโซน 'ร้อน' (ติดสถานะ Weakness)
-    deadly-hot: 40.0  # จุดเริ่มต้นของโซน 'ร้อนจัด' (เริ่มเสียเลือด)
-    freezing: 5.0     # จุดเริ่มต้นของโซน 'หนาว' (ติดสถานะ Slowness)
-    cold: 0.0         # จุดเริ่มต้นของโซน 'หนาวจัด' (เริ่มเสียเลือด)
+    normal: 25.0
+    hot: 35.0
+    deadly-hot: 40.0
+    freezing: 5.0
+    cold: 0.0
 
 # --- การตั้งค่าความกระหายน้ำ ---
 thirst:
-  max-level: 100                 # ค่าความกระหายน้ำสูงสุด
-  base-loss-per-update: 0.4      # ค่าความกระหายน้ำที่ลดลงพื้นฐาน (ต่อ 2 วินาที)
-  water-bottle-restore: 30       # จำนวนความกระหายน้ำที่ฟื้นฟูจากการดื่มขวดน้ำ
-  danger-level: 10               # ระดับความกระหายน้ำที่เริ่มแสดงผลข้างเคียงรุนแรง
+  max-level: 100
+  # (ปรับแล้ว) อัตราการลดลงของน้ำพื้นฐาน ทุกๆ 2 วินาที (ค่ายิ่งน้อย น้ำยิ่งลดช้า)
+  base-loss-per-update: 0.25
+  water-bottle-restore: 30
+  danger-level: 10
+
+# --- การตั้งค่าสถานะเอฟเฟกต์ (เพิ่มใหม่) ---
+# กำหนดระยะเวลาและความรุนแรงของเอฟเฟกต์ต่างๆ
+# duration: หน่วยเป็น tick (20 ticks = 1 วินาที)
+# amplifier: ความรุนแรง (0 = level 1, 1 = level 2)
+status-effects:
+  freezing-slowness:
+    duration: 60
+    amplifier: 0
+  hot-weakness:
+    duration: 60
+    amplifier: 0
+  no-thirst-slowness:
+    duration: 60
+    amplifier: 1
+  no-thirst-nausea:
+    duration: 100 # ลดลงจากเดิม
 
 # --- เอฟเฟกต์พิเศษและชุดเกราะ ---
 special-effects:
   leaf-armor-set-bonus:
-    required-pieces: 3          # จำนวนชิ้นที่ต้องใส่เพื่อรับโบนัส
-    nether-heat-reduction: 60.0 # ค่าการลดความร้อนจาก Nether (เมื่อใส่ครบเซ็ต)
-    temperature-reduction: 5.0  # ค่าการลดอุณหภูมิในโลกปกติ (เมื่อใส่ครบเซ็ต)
+    required-pieces: 3
+    # (เพิ่ม) ค่าการลดอุณหภูมิในโลกปกติ (เมื่อใส่ครบเซ็ต)
+    temperature-reduction: 5.0
+    nether-heat-reduction: 60.0
   leather-armor-set-bonus:
-    required-pieces: 3          # จำนวนชิ้นที่ต้องใส่เพื่อรับโบนัส
-    warmth-bonus: 15.0          # โบนัสค่าความอบอุ่น (เมื่อใส่ครบเซ็ต)
+    required-pieces: 3
+    warmth-bonus: 15.0
   nether:
-    temperature-increase: 60.0  # อุณหภูมิที่เพิ่มขึ้นเมื่ออยู่ใน Nether
-    thirst-loss-multiplier: 2.5 # ตัวคูณการเสียความกระหายน้ำใน Nether
+    temperature-increase: 60.0
+    thirst-loss-multiplier: 2.5
   environment:
-    fire-temp-increase: 10.0          # อุณหภูมิที่เพิ่มขึ้นเมื่ออยู่ใกล้ไฟ
-    water-snow-temp-decrease: -10.0   # อุณหภูมิที่ลดลงเมื่ออยู่ในน้ำ/บนหิมะ
-    powder-snow-temp-decrease: -20.0  # อุณหภูมิที่ลดลงเมื่ออยู่ใน Powder Snow
+    fire-temp-increase: 10.0
+    water-snow-temp-decrease: -10.0
+    powder-snow-temp-decrease: -20.0
 
 # --- เอฟเฟกต์ตาม Biome ---
 biome-effects:
   desert:
-    thirst-loss-multiplier: 2.0 # ตัวคูณการเสียความกระหายน้ำในทะเลทราย
+    # ตัวคูณการเสียน้ำในทะเลทราย (2.0 = เร็วขึ้น 2 เท่า)
+    thirst-loss-multiplier: 2.0
   cold-biome:
-    temperature-decrease: -7.0  # อุณหภูมิที่ลดลงใน Biome ที่หนาวเย็น (เช่น Taiga, Snowy Plains)
+    # อุณหภูมิที่จะลดลงเพิ่มเติมเมื่ออยู่ใน Biome ที่หนาวเย็น
+    temperature-decrease: -7.0
 
-# --- การตั้งค่าถุงน้ำ ---
+# --- การตั้งค่ากระเป๋าน้ำ ---
 water-pouch:
-  thirst-restore-amount: 30       # จำนวนความกระหายน้ำที่ฟื้นฟูเมื่อดื่มจากถุงน้ำ
-  drink-cooldown-seconds: 1.5   # คูลดาวน์หลังจากการดื่ม (หน่วย: วินาที)
+  thirst-restore-amount: 30
+  drink-cooldown-seconds: 1.5
   tiers:
     1:
-      capacity: 6 # ความจุของถุงน้ำเทียร์ 1 (หน่วย: ครั้ง)
+      capacity: 6
     2:
-      capacity: 12 # ความจุของถุงน้ำเทียร์ 2
+      capacity: 12
     3:
-      capacity: 20 # ความจุของถุงน้ำเทียร์ 3
+      capacity: 20
 
 # --- การตั้งค่าสภาพอากาศ ---
 weather:
-  change-cooldown-minutes: 15 # คูลดาวน์การเปลี่ยนสภาพอากาศแบบสุ่ม (หน่วย: นาที)
+  change-cooldown-minutes: 15
 
 # --- การตั้งค่า Scoreboard ---
 scoreboard:
@@ -82,4 +107,4 @@ scoreboard:
     - ""
     - "&fอุณหภูมิ: %temperature%"
     - "&fความกระหาย: &b%thirst_value%&7/&b%thirst_max%"
-    - "&7&m------------------ " # เว้นวรรคท้ายเพื่อไม่ให้ซ้ำกับเส้นบน
+    - "&7&m------------------ "
