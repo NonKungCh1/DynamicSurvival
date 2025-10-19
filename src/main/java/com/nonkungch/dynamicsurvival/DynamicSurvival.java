@@ -108,6 +108,11 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerRespawn(PlayerRespawnEvent event) {
         Player player = event.getPlayer();
+
+        // ✅ [แก้ไข] บังคับให้สร้าง Scoreboard ใหม่หลังจากเกิด
+        // เพราะ Bukkit อาจจะรีเซ็ต Scoreboard ของผู้เล่นตอนตาย
+        playerBoards.remove(player);
+
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -341,10 +346,17 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         }
         
         if (stats.getTemperature() > configManager.getHotTempThreshold()) thirstLoss *= 2;
-        if (player.isSprinting()) thirstLoss += 1;
+        
+        // ✅ [แก้ไข] ลดค่าการเสียน้ำตอนวิ่ง จากเดิม +1.0 (ซึ่งเยอะมาก)
+        // เหลือแค่ +0.25 (หรือค่าอื่นที่เห็นว่าเหมาะสม)
+        if (player.isSprinting()) thirstLoss += 0.10; 
+        
         if (player.getWorld().getEnvironment() == World.Environment.NETHER) {
             thirstLoss *= configManager.getNetherThirstMultiplier();
         }
+        
+        // เราใช้ (int) ในการปัดเศษทิ้ง ดังนั้นค่า thirstLoss จะถูกสะสมไปเรื่อยๆ
+        // จนกว่าจะรวมกันได้ 1.0 จึงจะลดค่า Thirst จริงๆ 1 หน่วย
         stats.setThirst(Math.max(0, (int) (stats.getThirst() - thirstLoss)));
     }
 
