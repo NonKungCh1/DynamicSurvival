@@ -1,4 +1,4 @@
-// /src/main/java/com/nonkungch/dynamicsurvival/DynamicSurvival.java (ฉบับแก้ไขระบบแจ้งเตือนฉบับสมบูรณ์)
+// /src/main/java/com/nonkungch/dynamicsurvival/DynamicSurvival.java (ฉบับแก้ไข isWalking)
 
 package com.nonkungch.dynamicsurvival;
 
@@ -109,7 +109,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        // ✅ [แก้ไข] ส่งค่า maxThirst เป็น float ให้ PlayerStats
+        // ส่งค่า maxThirst เป็น float ให้ PlayerStats
         playerStats.putIfAbsent(player, new PlayerStats(configManager.getBaseTemp(getCurrentSeason()), (float)configManager.getMaxThirst()));
         
         // เมื่อเข้าเกม ให้เริ่มตั้งค่า Scoreboard ทันที
@@ -181,7 +181,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     }
 
     public PlayerStats getPlayerStats(Player p) {
-        // ✅ [แก้ไข] ส่งค่า maxThirst เป็น float ให้ PlayerStats
+        // ส่งค่า maxThirst เป็น float ให้ PlayerStats
         return playerStats.getOrDefault(p, new PlayerStats(configManager.getBaseTemp(getCurrentSeason()), (float)configManager.getMaxThirst()));
     }
     public ConfigManager getConfigManager() { return configManager; }
@@ -227,7 +227,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
                         float newTemp = calculateTemperature(player);
                         stats.setTemperature(newTemp);
                         
-                        // ✅ [แก้ไข] เรียกใช้เมท็อด updateThirst ที่ปรับปรุงแล้ว
+                        // เรียกใช้เมท็อด updateThirst ที่ปรับปรุงแล้ว
                         updateThirst(player, stats);
                         
                         // อัปเดต Scoreboard
@@ -372,7 +372,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         line = line.replace("%season_duration%", String.valueOf(seasonDuration));
         line = line.replace("%days_left%", String.valueOf(daysLeft));
         line = line.replace("%temperature%", getTemperatureColor(stats.getTemperature()) + String.format("%.1f°C", stats.getTemperature()));
-        // ✅ [แก้ไข] .intValue() เพื่อแสดงค่าจำนวนเต็มใน Scoreboard
+        // แสดงค่าจำนวนเต็มใน Scoreboard
         line = line.replace("%thirst_value%", String.valueOf(stats.getThirst().intValue())); 
         line = line.replace("%thirst_max%", String.valueOf(configManager.getMaxThirst()));
         return line;
@@ -451,7 +451,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         return temp;
     }
 
-    // ✅ [แก้ไข] เมท็อด updateThirst ถูกปรับปรุงใหม่ให้ใช้ค่าทศนิยมและเงื่อนไขการอยู่นิ่ง
+    // เมท็อด updateThirst ถูกปรับปรุงใหม่ให้ใช้ค่าทศนิยมและเงื่อนไขการอยู่นิ่ง
     private void updateThirst(Player player, PlayerStats stats) {
         double thirstLoss = configManager.getBaseThirstLoss();
         
@@ -464,13 +464,14 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         
         if (player.isSprinting()) {
             thirstLoss += 0.10; 
-        } else if (player.isWalking()) {
-            // ลด Thirst Loss เมื่อเดินช้า ๆ
-            thirstLoss *= 0.5; 
         } else {
-            // ✅ [แก้ไข] เมื่ออยู่นิ่ง ๆ (ไม่วิ่งและไม่เดิน) ค่าน้ำจะไม่ลด
-            // ตรวจสอบว่าความเร็วของ player ต่ำมาก (เกือบ 0)
-            if (player.getVelocity().lengthSquared() < 0.01) { 
+            // ตรวจสอบว่ากำลังเคลื่อนที่หรือไม่ (ไม่วิ่ง)
+            // ใช้ 0.005 เป็นค่า Threshold สำหรับการเดิน
+            if (player.getVelocity().lengthSquared() > 0.005) { 
+                // กำลังเดิน (Moving/Walking)
+                thirstLoss *= 0.5; 
+            } else {
+                // อยู่นิ่ง (Stationary)
                 thirstLoss = 0.0;
             }
         }
@@ -485,7 +486,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
 
     private void applyStatusEffects(Player player, PlayerStats stats) {
         float temp = stats.getTemperature();
-        // ✅ [แก้ไข] ใช้ stats.getThirst() แทน stats.getThirst() <= 0
+        // ใช้ stats.getThirst() แทน stats.getThirst() <= 0
         if (temp < configManager.getColdTempThreshold()) {
             player.damage(1.0);
             player.sendTitle("", "§bคุณกำลังจะแข็งตาย!", 10, 40, 10);
@@ -523,12 +524,12 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     }
 
 
-    // ✅ [แก้ไข] คลาส PlayerStats ถูกเปลี่ยนให้ใช้ float สำหรับ thirst
+    // คลาส PlayerStats ถูกเปลี่ยนให้ใช้ float สำหรับ thirst
     public static class PlayerStats {
         private float temperature;
-        private float thirst; // ✅ เปลี่ยนจาก int เป็น float
+        private float thirst; // เปลี่ยนจาก int เป็น float
         
-        // ✅ [แก้ไข] Constructor รับค่า thirst เป็น float
+        // Constructor รับค่า thirst เป็น float
         public PlayerStats(float temp, float thirst) { 
             this.temperature = temp; 
             this.thirst = thirst; 
@@ -537,11 +538,11 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         public float getTemperature() { return temperature; }
         public void setTemperature(float t) { this.temperature = t; }
         
-        // ✅ [แก้ไข] Getter/Setter เป็น float
+        // Getter/Setter เป็น float
         public Float getThirst() { return thirst; } // เปลี่ยนเป็น Float
         public void setThirst(float t) { this.thirst = t; }
         
-        // ✅ [แก้ไข] addThirst รับและจัดการค่าเป็น float
+        // addThirst รับและจัดการค่าเป็น float
         public void addThirst(int amount, int max) { 
             this.thirst = Math.min((float)max, this.thirst + amount); 
         }
