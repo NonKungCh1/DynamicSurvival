@@ -83,7 +83,8 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(new PouchListener(this, pouchManager), this);
 
         this.getCommand("ds").setExecutor(new DSCommand(this));
-        new CalendarGUI(this);
+        // (สมมติว่า CalendarGUI มี Constructor ที่รับ JavaPlugin)
+        // new CalendarGUI(this); 
 
         startMainLoop();
     }
@@ -96,7 +97,8 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         // ล้าง Scoreboard ของผู้เล่นทุกคนก่อนปิดปลั๊กอิน
         for (Player p : Bukkit.getOnlinePlayers()) {
             if (playerBoards.containsKey(p)) {
-                p.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+                // คืนค่า Scoreboard เป็น Main Scoreboard
+                p.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard()); 
             }
         }
     }
@@ -116,7 +118,8 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         
         // ลบ Scoreboard ของเราออกเมื่อผู้เล่นออกจากเกม
         if (playerBoards.containsKey(player)) {
-            player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+            // คืนค่า Scoreboard เป็น Main Scoreboard ก่อนออก
+            player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard()); 
         }
         playerBoards.remove(player);
     }
@@ -125,15 +128,11 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     public void onPlayerRespawn(PlayerRespawnEvent event) {
         Player player = event.getPlayer();
 
-        // ❌ [แก้ไข] ไม่ต้อง remove ตรงนี้ เพราะ computeIfAbsent ใน sendScoreboardUpdate จะจัดการ
-        // เพื่อป้องกันปัญหา Scoreboard หายไปเพราะถูกรีเซ็ตตอนตาย
-        // เราจะเรียก sendScoreboardUpdate หลังจากเกิดใหม่เล็กน้อย
-        
+        // แก้ปัญหา Scoreboard หายไป: เรียกให้สร้างและส่ง Scoreboard อีกครั้งหลังจากเกิด
         new BukkitRunnable() {
             @Override
             public void run() {
                 if (player.isOnline()) {
-                    // เรียกให้สร้างและส่ง Scoreboard อีกครั้งหลังจากเกิด
                     sendScoreboardUpdate(player, getPlayerStats(player));
                 }
             }
@@ -142,7 +141,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     }
     
     public int getCurrentDayInWorld() {
-        if (trackedWorld == null) return 1;
+        if (trackedWorld == null) return 0; // วันที่ 0 คือวันแรก
         // การนับวันของ Minecraft เริ่มต้นที่ 0 ในวันแรก
         return (int) (trackedWorld.getFullTime() / 24000L); 
     }
@@ -217,7 +216,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
                         // อัปเดต Scoreboard
                         sendScoreboardUpdate(player, stats);
                         
-                        // ✅ [เพิ่ม] ส่งข้อมูลในแชท/ActionBar
+                        // ✅ [แก้ไข] ส่งข้อมูลในแชทแทน ActionBar
                         sendPlayerInfo(player, stats); 
 
                         applyStatusEffects(player, stats);
@@ -286,7 +285,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         }
     }
 
-    // ✅ [เพิ่ม] เมท็อดสำหรับส่งข้อมูลผู้เล่นใน ActionBar
+    // ✅ [แก้ไข] เมท็อดนี้ถูกเปลี่ยนไปใช้ player.sendMessage() แทน player.sendActionBar()
     private void sendPlayerInfo(Player player, PlayerStats stats) {
         Season season = getCurrentSeason();
         int totalDay = getCurrentDayInWorld();
@@ -294,8 +293,9 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         int thirst = stats.getThirst();
         int maxThirst = configManager.getMaxThirst();
         
-        // สร้างข้อความสำหรับ ActionBar
-        String message = String.format(" %s[%s] §f| วันรวม: §e%d §f| วันในฤดู: §e%d §f| น้ำ: %s%d§f/%d", 
+        // สร้างข้อความสำหรับแชท
+        // ตัวอย่าง: [DS] 🌸[ฤดูใบไม้ผลิ] | วันรวม: 1 | วันในฤดู: 1 | น้ำ: 20/20
+        String message = String.format("§7[DS] %s[%s] §f| วันรวม: §e%d §f| วันในฤดู: §e%d §f| น้ำ: %s%d§f/%d", 
             season.getChatColor(), 
             season.getThaiName(),
             totalDay + 1, // +1 เพราะวันรวมจะเริ่มนับจาก 0
@@ -305,7 +305,8 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             maxThirst
         );
 
-        player.sendActionBar(ChatColor.translateAlternateColorCodes('&', message));
+        // ส่งข้อความไปที่แชท
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', message));
     }
 
 
@@ -411,16 +412,14 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         
         if (stats.getTemperature() > configManager.getHotTempThreshold()) thirstLoss *= 2;
         
-        // ✅ [แก้ไข] ลดค่าการเสียน้ำตอนวิ่ง จากเดิม +1.0 (ซึ่งเยอะมาก)
-        // เหลือแค่ +0.10
+        // ลดค่าการเสียน้ำตอนวิ่ง เหลือแค่ +0.10
         if (player.isSprinting()) thirstLoss += 0.10; 
         
         if (player.getWorld().getEnvironment() == World.Environment.NETHER) {
             thirstLoss *= configManager.getNetherThirstMultiplier();
         }
         
-        // เราใช้ (int) ในการปัดเศษทิ้ง ดังนั้นค่า thirstLoss จะถูกสะสมไปเรื่อยๆ
-        // จนกว่าจะรวมกันได้ 1.0 จึงจะลดค่า Thirst จริงๆ 1 หน่วย
+        // ใช้ (int) ในการปัดเศษทิ้ง
         stats.setThirst(Math.max(0, (int) (stats.getThirst() - thirstLoss)));
     }
 
@@ -452,7 +451,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         return ChatColor.GREEN;
     }
 
-    // ✅ [เพิ่ม] เมท็อดช่วยสำหรับสีค่าน้ำ
+    // เมท็อดช่วยสำหรับสีค่าน้ำ
     private ChatColor getThirstColor(int current, int max) {
         double ratio = (double) current / max;
         if (ratio > 0.75) return ChatColor.AQUA;
