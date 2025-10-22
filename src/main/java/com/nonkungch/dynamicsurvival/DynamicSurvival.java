@@ -1,4 +1,4 @@
-// /src/main/java/com/nonkungch/dynamicsurvival/DynamicSurvival.java (ฉบับแก้ไขสมบูรณ์)
+// /src/main/java/com/nonkungch/dynamicsurvival/DynamicSurvival.java (ฉบับแก้ไขระบบแจ้งเตือนฉบับสมบูรณ์)
 
 package com.nonkungch.dynamicsurvival;
 
@@ -43,9 +43,10 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     private Season currentSeason = Season.SPRING;
     private long nextWeatherChangeTick = 0;
     private int totalDaysInYear = 0;
+    // ตัวแปรสำหรับเก็บวันปัจจุบันที่ได้ทำการแจ้งเตือนไปแล้ว
+    private int lastAnnouncedDay = 0; 
 
     private final Map<Player, PlayerStats> playerStats = new HashMap<>();
-    // ใช้ Map นี้ในการเก็บ Scoreboard ของผู้เล่นแต่ละคน
     private final Map<Player, Scoreboard> playerBoards = new HashMap<>();
     public final Random random = new Random();
     private World trackedWorld;
@@ -64,6 +65,9 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             getLogger().warning("No world found! Season system might not work correctly.");
             return;
         }
+        
+        // กำหนดค่าเริ่มต้นของ lastAnnouncedDay เมื่อปลั๊กอินเปิด
+        lastAnnouncedDay = getCurrentDayInWorld();
 
         // เปิดใช้งาน API
         DynamicSurvivalAPI.initialize(this);
@@ -83,7 +87,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         Bukkit.getPluginManager().registerEvents(new PouchListener(this, pouchManager), this);
 
         this.getCommand("ds").setExecutor(new DSCommand(this));
-        // (สมมติว่า CalendarGUI มี Constructor ที่รับ JavaPlugin)
         // new CalendarGUI(this); 
 
         startMainLoop();
@@ -106,7 +109,8 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        playerStats.putIfAbsent(player, new PlayerStats(configManager.getBaseTemp(getCurrentSeason()), configManager.getMaxThirst()));
+        // ✅ [แก้ไข] ส่งค่า maxThirst เป็น float ให้ PlayerStats
+        playerStats.putIfAbsent(player, new PlayerStats(configManager.getBaseTemp(getCurrentSeason()), (float)configManager.getMaxThirst()));
         
         // เมื่อเข้าเกม ให้เริ่มตั้งค่า Scoreboard ทันที
         sendScoreboardUpdate(player, getPlayerStats(player)); 
@@ -136,7 +140,6 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
                     sendScoreboardUpdate(player, getPlayerStats(player));
                 }
             }
-        // ใช้ 1L เพื่อให้แน่ใจว่าเกิดใหม่เสร็จสมบูรณ์แล้ว
         }.runTaskLater(this, 1L); 
     }
     
@@ -178,7 +181,8 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     }
 
     public PlayerStats getPlayerStats(Player p) {
-        return playerStats.getOrDefault(p, new PlayerStats(configManager.getBaseTemp(getCurrentSeason()), configManager.getMaxThirst()));
+        // ✅ [แก้ไข] ส่งค่า maxThirst เป็น float ให้ PlayerStats
+        return playerStats.getOrDefault(p, new PlayerStats(configManager.getBaseTemp(getCurrentSeason()), (float)configManager.getMaxThirst()));
     }
     public ConfigManager getConfigManager() { return configManager; }
 
@@ -188,16 +192,27 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             public void run() {
                 if (trackedWorld == null) return;
                 
-                Season newSeason = getCurrentSeason();
-                if (newSeason != currentSeason) {
-                    currentSeason = newSeason;
-                    String msg = String.format("§l§e--- %sการเปลี่ยนฤดูกาลครั้งใหญ่!%s ---", ChatColor.GOLD, ChatColor.RESET);
-                    String seasonMsg = String.format("%s! ฤดูกาลใหม่คือ: %s%s", ChatColor.YELLOW, currentSeason.getChatColor(), currentSeason.getThaiName());
-                    Bukkit.broadcastMessage(msg);
-                    Bukkit.broadcastMessage(seasonMsg);
-                    // (สมมติว่า Season.processSeasonStart มีการใช้งาน)
-                    // currentSeason.processSeasonStart(DynamicSurvival.this); 
-                    Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage("§7(โปรดทราบว่าสภาพแวดล้อมได้เปลี่ยนไปแล้ว!)"));
+                int currentDay = getCurrentDayInWorld();
+                
+                // ตรวจสอบการเปลี่ยนวันเพื่อแจ้งเตือน
+                if (currentDay > lastAnnouncedDay) {
+                    lastAnnouncedDay = currentDay;
+                    
+                    Season newSeason = getCurrentSeason();
+                    if (newSeason != currentSeason) {
+                        currentSeason = newSeason;
+                        String msg = String.format("§l§e--- %sการเปลี่ยนฤดูกาลครั้งใหญ่!%s ---", ChatColor.GOLD, ChatColor.RESET);
+                        String seasonMsg = String.format("%s! ฤดูกาลใหม่คือ: %s%s", ChatColor.YELLOW, currentSeason.getChatColor(), currentSeason.getThaiName());
+                        Bukkit.broadcastMessage(msg);
+                        Bukkit.broadcastMessage(seasonMsg);
+                        // currentSeason.processSeasonStart(DynamicSurvival.this); 
+                        Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage("§7(โปรดทราบว่าสภาพแวดล้อมได้เปลี่ยนไปแล้ว!)"));
+                    }
+                    
+                    // แจ้งเตือนวันใหม่
+                    Bukkit.getOnlinePlayers().forEach(player -> {
+                        sendDayInfo(player);
+                    });
                 }
                 
                 if (trackedWorld.getFullTime() >= nextWeatherChangeTick) {
@@ -211,13 +226,15 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
                         PlayerStats stats = getPlayerStats(player);
                         float newTemp = calculateTemperature(player);
                         stats.setTemperature(newTemp);
+                        
+                        // ✅ [แก้ไข] เรียกใช้เมท็อด updateThirst ที่ปรับปรุงแล้ว
                         updateThirst(player, stats);
                         
                         // อัปเดต Scoreboard
                         sendScoreboardUpdate(player, stats);
                         
-                        // ✅ [แก้ไข] ส่งข้อมูลในแชทแทน ActionBar
-                        sendPlayerInfo(player, stats); 
+                        // ตรวจสอบสถานะค่าน้ำและแจ้งเตือนเฉพาะเงื่อนไขสำคัญ
+                        checkAndSendThirstStatus(player, stats); 
 
                         applyStatusEffects(player, stats);
                     }
@@ -225,6 +242,68 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
             }
         }.runTaskTimer(this, 40L, 40L); // รันทุก 2 วินาที (40 Ticks)
     }
+    
+    // เมท็อดสำหรับส่งข้อมูลฤดูกาล/วัน (ใช้เมื่อเป็นวันใหม่เท่านั้น)
+    private void sendDayInfo(Player player) {
+        Season season = getCurrentSeason();
+        int totalDay = getCurrentDayInWorld();
+        int dayInSeason = getCurrentDayInSeason();
+        
+        // ข้อความจะขึ้นในแชทเมื่อเปลี่ยนวันเท่านั้น
+        String message = String.format("§7[DS] %s[%s] §f| วันรวม: §e%d §f| วันในฤดู: §e%d", 
+            season.getChatColor(), 
+            season.getThaiName(),
+            totalDay + 1, // +1 เพราะวันรวมจะเริ่มนับจาก 0
+            dayInSeason
+        );
+
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', message));
+    }
+    
+    // เมท็อดสำหรับตรวจสอบและแจ้งเตือนสถานะค่าน้ำ
+    private void checkAndSendThirstStatus(Player player, PlayerStats stats) {
+        float thirst = stats.getThirst();
+        int maxThirst = configManager.getMaxThirst();
+        double ratio = (double) thirst / maxThirst;
+        
+        // ใช้ PersistentDataContainer (PDC) เพื่อเก็บสถานะการแจ้งเตือน
+        NamespacedKey thirstKey = new NamespacedKey(this, "thirst_status_check");
+        // สถานะ: 0=ปกติ, 1=เต็มแล้ว, 2=ใกล้หมด (<10%), 3=หมดแล้ว (<=0)
+        int currentStatus = player.getPersistentDataContainer().getOrDefault(thirstKey, PersistentDataType.INTEGER, 0);
+
+        String warningMessage = null;
+        int newStatus = currentStatus; // กำหนดค่าเริ่มต้นให้เป็นสถานะปัจจุบัน
+
+        if (thirst >= maxThirst) {
+            if (currentStatus != 1) {
+                warningMessage = "§a[DS] ค่าน้ำของคุณเต็มแล้ว!";
+                newStatus = 1;
+            }
+        } else if (ratio <= 0.10 && ratio > 0) {
+            if (currentStatus != 2) {
+                warningMessage = "§c[DS] ค่าน้ำใกล้จะหมดแล้ว! โปรดดื่มน้ำโดยเร็ว";
+                newStatus = 2;
+            }
+        } else if (thirst <= 0) {
+            if (currentStatus != 3) {
+                warningMessage = "§4[DS] ค่าน้ำหมดแล้ว! คุณเริ่มรู้สึกกระหายน้ำอย่างรุนแรง";
+                newStatus = 3;
+            }
+        } else if (currentStatus != 0) {
+            // หากค่าน้ำไม่ได้อยู่ในช่วงวิกฤต (>0.10 ratio) หรือไม่ได้เต็ม
+            // และสถานะเดิมเป็น 1, 2, หรือ 3 ให้รีเซ็ตกลับไปเป็นปกติ (0)
+            newStatus = 0; 
+        }
+
+        if (warningMessage != null) {
+            player.sendMessage(warningMessage);
+            player.getPersistentDataContainer().set(thirstKey, PersistentDataType.INTEGER, newStatus);
+        } else if (newStatus != currentStatus) {
+            // อัปเดตสถานะใน PDC เมื่อผู้เล่นดื่มน้ำจนพ้นช่วงอันตราย (เปลี่ยนสถานะเป็น 0)
+             player.getPersistentDataContainer().set(thirstKey, PersistentDataType.INTEGER, newStatus);
+        }
+    }
+
 
     private void applyRandomWeather() {
         if (trackedWorld.hasStorm() || trackedWorld.isThundering()) {
@@ -247,23 +326,18 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         }
     }
 
-    // ✅ [แก้ไข] เมท็อดนี้ถูกปรับปรุงเพื่อให้ Scoreboard มีความคงทนมากขึ้น
+    // เมท็อด Scoreboard ที่ปรับปรุงแล้ว
     public void sendScoreboardUpdate(Player player, PlayerStats stats) {
-        // 1. รับหรือสร้าง Scoreboard ใหม่
         Scoreboard board = playerBoards.computeIfAbsent(player, p -> {
             Scoreboard newBoard = Bukkit.getScoreboardManager().getNewScoreboard();
-            // ตั้งค่า Scoreboard ทันทีที่สร้าง (ป้องกันปลั๊กอินอื่นมาแย่ง)
             p.setScoreboard(newBoard); 
             return newBoard;
         });
 
-        // 2. ตรวจสอบและบังคับตั้งค่า Scoreboard ให้ผู้เล่นทุกครั้ง
-        // เพื่อแก้ไขปัญหา Scoreboard หายไปเมื่อมีปลั๊กอินอื่นเข้ามาแทรก
         if (player.getScoreboard() != board) {
              player.setScoreboard(board);
         }
         
-        // 3. จัดการ Objective
         Objective obj = board.getObjective("ds_stats");
         if (obj == null) {
             obj = board.registerNewObjective("ds_stats", "dummy", ChatColor.translateAlternateColorCodes('&', configManager.getScoreboardTitle()));
@@ -271,42 +345,16 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         }
         obj.setDisplayName(ChatColor.translateAlternateColorCodes('&', configManager.getScoreboardTitle()));
         
-        // 4. อัปเดต Score
         board.getEntries().forEach(board::resetScores);
         List<String> lines = configManager.getScoreboardLines();
         int score = lines.size();
         for (String line : lines) {
             String processedLine = replacePlaceholders(line, player, stats);
-            // เพิ่มสีให้บรรทัดว่างด้วยตัวเลข Score
             if (processedLine.isEmpty() || processedLine.equals(" ")) { 
                 processedLine = "§" + Integer.toHexString(score) + "§r";
             }
             obj.getScore(processedLine).setScore(score--);
         }
-    }
-
-    // ✅ [แก้ไข] เมท็อดนี้ถูกเปลี่ยนไปใช้ player.sendMessage() แทน player.sendActionBar()
-    private void sendPlayerInfo(Player player, PlayerStats stats) {
-        Season season = getCurrentSeason();
-        int totalDay = getCurrentDayInWorld();
-        int dayInSeason = getCurrentDayInSeason();
-        int thirst = stats.getThirst();
-        int maxThirst = configManager.getMaxThirst();
-        
-        // สร้างข้อความสำหรับแชท
-        // ตัวอย่าง: [DS] 🌸[ฤดูใบไม้ผลิ] | วันรวม: 1 | วันในฤดู: 1 | น้ำ: 20/20
-        String message = String.format("§7[DS] %s[%s] §f| วันรวม: §e%d §f| วันในฤดู: §e%d §f| น้ำ: %s%d§f/%d", 
-            season.getChatColor(), 
-            season.getThaiName(),
-            totalDay + 1, // +1 เพราะวันรวมจะเริ่มนับจาก 0
-            dayInSeason,
-            getThirstColor(thirst, maxThirst),
-            thirst,
-            maxThirst
-        );
-
-        // ส่งข้อความไปที่แชท
-        player.sendMessage(ChatColor.translateAlternateColorCodes('&', message));
     }
 
 
@@ -324,7 +372,8 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         line = line.replace("%season_duration%", String.valueOf(seasonDuration));
         line = line.replace("%days_left%", String.valueOf(daysLeft));
         line = line.replace("%temperature%", getTemperatureColor(stats.getTemperature()) + String.format("%.1f°C", stats.getTemperature()));
-        line = line.replace("%thirst_value%", String.valueOf(stats.getThirst()));
+        // ✅ [แก้ไข] .intValue() เพื่อแสดงค่าจำนวนเต็มใน Scoreboard
+        line = line.replace("%thirst_value%", String.valueOf(stats.getThirst().intValue())); 
         line = line.replace("%thirst_max%", String.valueOf(configManager.getMaxThirst()));
         return line;
     }
@@ -402,6 +451,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         return temp;
     }
 
+    // ✅ [แก้ไข] เมท็อด updateThirst ถูกปรับปรุงใหม่ให้ใช้ค่าทศนิยมและเงื่อนไขการอยู่นิ่ง
     private void updateThirst(Player player, PlayerStats stats) {
         double thirstLoss = configManager.getBaseThirstLoss();
         
@@ -412,19 +462,30 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         
         if (stats.getTemperature() > configManager.getHotTempThreshold()) thirstLoss *= 2;
         
-        // ลดค่าการเสียน้ำตอนวิ่ง เหลือแค่ +0.10
-        if (player.isSprinting()) thirstLoss += 0.10; 
+        if (player.isSprinting()) {
+            thirstLoss += 0.10; 
+        } else if (player.isWalking()) {
+            // ลด Thirst Loss เมื่อเดินช้า ๆ
+            thirstLoss *= 0.5; 
+        } else {
+            // ✅ [แก้ไข] เมื่ออยู่นิ่ง ๆ (ไม่วิ่งและไม่เดิน) ค่าน้ำจะไม่ลด
+            // ตรวจสอบว่าความเร็วของ player ต่ำมาก (เกือบ 0)
+            if (player.getVelocity().lengthSquared() < 0.01) { 
+                thirstLoss = 0.0;
+            }
+        }
         
         if (player.getWorld().getEnvironment() == World.Environment.NETHER) {
             thirstLoss *= configManager.getNetherThirstMultiplier();
         }
         
-        // ใช้ (int) ในการปัดเศษทิ้ง
-        stats.setThirst(Math.max(0, (int) (stats.getThirst() - thirstLoss)));
+        // ลดค่าน้ำด้วยค่าทศนิยมจริง ๆ (Thirst ถูกเปลี่ยนเป็น float แล้ว)
+        stats.setThirst(Math.max(0f, stats.getThirst() - (float)thirstLoss));
     }
 
     private void applyStatusEffects(Player player, PlayerStats stats) {
         float temp = stats.getTemperature();
+        // ✅ [แก้ไข] ใช้ stats.getThirst() แทน stats.getThirst() <= 0
         if (temp < configManager.getColdTempThreshold()) {
             player.damage(1.0);
             player.sendTitle("", "§bคุณกำลังจะแข็งตาย!", 10, 40, 10);
@@ -451,7 +512,7 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
         return ChatColor.GREEN;
     }
 
-    // เมท็อดช่วยสำหรับสีค่าน้ำ
+    // เมท็อดช่วยสำหรับสีค่าน้ำ (ยังคงเก็บไว้เผื่อใช้ใน Scoreboard)
     private ChatColor getThirstColor(int current, int max) {
         double ratio = (double) current / max;
         if (ratio > 0.75) return ChatColor.AQUA;
@@ -462,14 +523,27 @@ public class DynamicSurvival extends JavaPlugin implements Listener {
     }
 
 
+    // ✅ [แก้ไข] คลาส PlayerStats ถูกเปลี่ยนให้ใช้ float สำหรับ thirst
     public static class PlayerStats {
         private float temperature;
-        private int thirst;
-        public PlayerStats(float temp, int thirst) { this.temperature = temp; this.thirst = thirst; }
+        private float thirst; // ✅ เปลี่ยนจาก int เป็น float
+        
+        // ✅ [แก้ไข] Constructor รับค่า thirst เป็น float
+        public PlayerStats(float temp, float thirst) { 
+            this.temperature = temp; 
+            this.thirst = thirst; 
+        }
+        
         public float getTemperature() { return temperature; }
         public void setTemperature(float t) { this.temperature = t; }
-        public int getThirst() { return thirst; }
-        public void setThirst(int t) { this.thirst = t; }
-        public void addThirst(int amount, int max) { this.thirst = Math.min(max, this.thirst + amount); }
+        
+        // ✅ [แก้ไข] Getter/Setter เป็น float
+        public Float getThirst() { return thirst; } // เปลี่ยนเป็น Float
+        public void setThirst(float t) { this.thirst = t; }
+        
+        // ✅ [แก้ไข] addThirst รับและจัดการค่าเป็น float
+        public void addThirst(int amount, int max) { 
+            this.thirst = Math.min((float)max, this.thirst + amount); 
+        }
     }
 }
